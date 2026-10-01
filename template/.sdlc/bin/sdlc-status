@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright © 2026 Doublefree.in and contributors.
 """Render the human status report for an .sdlc/ project (PROTO.md §6.11).
 
 Reads board/state.json and trace/ and prints a TODO.MD-format report:

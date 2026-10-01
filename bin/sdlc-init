@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright © 2026 Doublefree.in and contributors.
 # Set up the SDLC protocol in a project: creates <project>/.sdlc/ from the
 # template, pins a copy of PROTO.md, and adds the gitignore entries.
 #

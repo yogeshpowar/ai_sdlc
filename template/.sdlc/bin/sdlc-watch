@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright © 2026 Doublefree.in and contributors.
 # Live view of the SDLC: which agents are working, recent events, and the
 # TODO.MD board. Read-only: it renders from state.json and trace/, never writes.
 #

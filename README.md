@@ -17,6 +17,7 @@ The protocol itself is [`PROTO.md`](PROTO.md). This repo is its canonical home.
 | `template/.sdlc/` | Blank `.sdlc/` skeleton that gets copied into each new project |
 | `template/.sdlc/agents/` | Generic definitions for every roster agent, plus `_common.md` (rules all agents share) |
 | `bin/sdlc-init` | Sets up the protocol in a project |
+| `LICENSE` | GPL-3.0-only |
 
 ## Starting a new project
 
@@ -56,3 +57,16 @@ Then:
 Edit `PROTO.md` here, bump `VERSION`, and add a `CHANGELOG.md` entry. Existing
 projects keep their pinned copy until you deliberately copy the new
 `PROTO.md` into their `.sdlc/` and update their `PROTOCOL_VERSION`.
+
+## License
+
+Copyright © 2026 Doublefree.in and contributors.
+
+The files in this repository are licensed under the **GNU General Public
+License v3.0 only** (GPL-3.0-only). See the [`LICENSE`](LICENSE) file for the
+full text.
+
+If you copy or modify code from this repository, including the scripts that
+`sdlc-init` copies into a project's `.sdlc/bin/`, follow the GPL accordingly.
+Projects that only follow the protocol, without incorporating its
+GPL-licensed code, are not covered by the GPL through the protocol text alone.
