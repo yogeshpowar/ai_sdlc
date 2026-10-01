@@ -11,6 +11,7 @@ The protocol itself is [`PROTO.md`](PROTO.md). This repo is its canonical home.
 
 | Path | What it is |
 |---|---|
+| **`GUIDE.md`** | **Start here:** step-by-step instructions for humans starting and running a project |
 | `PROTO.md` | The protocol: roles, lifecycle, gates, file layout, run tracing, token accounting |
 | `VERSION` | Protocol version (currently 1.2) |
 | `CHANGELOG.md` | What changed between protocol versions |
@@ -20,6 +21,10 @@ The protocol itself is [`PROTO.md`](PROTO.md). This repo is its canonical home.
 | `LICENSE` | GPL-3.0-only |
 
 ## Starting a new project
+
+> Full walkthrough, including the kickoff prompt, approvals, the inbox and
+> troubleshooting: **[GUIDE.md](GUIDE.md)**. `sdlc-init` also copies it into
+> each project's `.sdlc/`.
 
 ```sh
 ~/working/ai_sdlc/bin/sdlc-init ~/working/<new-project> [project-name]

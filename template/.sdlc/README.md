@@ -5,6 +5,7 @@ work on this repo: backlog, status, specs, reviews, QA reports, approvals,
 escalations and run traces. None of it is part of the product. Builds, tests
 and deploys must ignore it.
 
+- **How to use this as a human:** [`GUIDE.md`](GUIDE.md)
 - The protocol (pinned copy): [`PROTO.md`](PROTO.md), version in [`PROTOCOL_VERSION`](PROTOCOL_VERSION)
 - Project config: [`config.yaml`](config.yaml)
 - **Status for humans:** [`TODO.md`](TODO.md). Watch it live with `.sdlc/bin/sdlc-watch`

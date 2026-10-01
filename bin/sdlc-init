@@ -29,11 +29,12 @@ fi
 
 cp -R "$SDLC_HOME/template/.sdlc" "$target/.sdlc"
 cp "$SDLC_HOME/PROTO.md" "$target/.sdlc/PROTO.md"
+cp "$SDLC_HOME/GUIDE.md" "$target/.sdlc/GUIDE.md"
 echo "$version" > "$target/.sdlc/PROTOCOL_VERSION"
 
 # Fill in placeholders in every text file of the new .sdlc/.
 find "$target/.sdlc" -type f \( -name '*.md' -o -name '*.yaml' -o -name '*.json' \) \
-  ! -name PROTO.md -print0 |
+  ! -name PROTO.md ! -name GUIDE.md -print0 |
   while IFS= read -r -d '' f; do
     sed -i.bak -e "s|{{PROJECT}}|$name|g" -e "s|{{DATE}}|$today|g" \
       -e "s|{{VERSION}}|$version|g" "$f" && rm -f "$f.bak"
@@ -50,7 +51,7 @@ done
 cat <<MSG
 Initialised SDLC protocol v$version in $target/.sdlc for project "$name".
 
-Next steps:
+Next steps (full walkthrough: $target/.sdlc/GUIDE.md):
   1. Write the brief:          $target/.sdlc/knowledge/brief.md
   2. Fill in the config:       $target/.sdlc/config.yaml
   3. Review the agents:        $target/.sdlc/agents/  (generic definitions; adjust tools/paths, delete unused ones)

@@ -1,5 +1,13 @@
 # Changelog: SDLC protocol
 
+## Unreleased (docs only, protocol unchanged)
+
+### Added
+- `GUIDE.md`: step-by-step instructions for humans: set up, brief, config,
+  agents, the kickoff prompt, watching, approvals, inbox, troubleshooting,
+  upgrading. Defines the content of `approvals/` and `inbox/` files.
+  `sdlc-init` copies it into each project's `.sdlc/`.
+
 ## 1.2 — 2026-10-02
 
 ### Added
