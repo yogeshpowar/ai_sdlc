@@ -15,6 +15,7 @@ The protocol itself is [`PROTO.md`](PROTO.md). This repo is its canonical home.
 | `VERSION` | Protocol version (currently 1.1) |
 | `CHANGELOG.md` | What changed between protocol versions |
 | `template/.sdlc/` | Blank `.sdlc/` skeleton that gets copied into each new project |
+| `template/.sdlc/agents/` | Generic definitions for every roster agent, plus `_common.md` (rules all agents share) |
 | `bin/sdlc-init` | Sets up the protocol in a project |
 
 ## Starting a new project
@@ -28,7 +29,8 @@ This creates `<new-project>/.sdlc/` with:
   nothing outside the repo and a protocol upgrade never changes a running
   project by surprise
 - `config.yaml`, `board/` (backlog, state, board), `knowledge/` (brief,
-  context, lessons, glossary), `agents/_template.md`, empty `items/`,
+  context, lessons, glossary), `agents/` (19 generic agent definitions plus
+  `_common.md` and `_template.md`), empty `items/`,
   `inbox/`, `outbox/`, `approvals/`, `archive/` and `trace/`
 - the project name and date filled in, and `.sdlc/tmp/` and
   `.sdlc/trace/transcripts/` added to the project's `.gitignore`
@@ -38,7 +40,9 @@ It refuses to run if `.sdlc/` already exists.
 Then:
 1. Write `.sdlc/knowledge/brief.md` (what, for whom, why, constraints).
 2. Fill in `.sdlc/config.yaml`: stack, enabled agents, environments, gates, budgets.
-3. Write `.sdlc/agents/<agent>.md` for each enabled agent, starting from `_template.md`.
+3. Review `.sdlc/agents/`: adjust each enabled agent's `Tools` and project
+   paths to your stack, and delete or ignore the disabled ones. Add new roles
+   from `_template.md`.
 4. Start the Orchestrator. It turns the brief into the backlog and runs items
    through the lifecycle.
 

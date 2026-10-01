@@ -45,6 +45,6 @@ Initialised SDLC protocol v$version in $target/.sdlc for project "$name".
 Next steps:
   1. Write the brief:          $target/.sdlc/knowledge/brief.md
   2. Fill in the config:       $target/.sdlc/config.yaml
-  3. Define enabled agents:    $target/.sdlc/agents/<agent>.md  (start from _template.md)
+  3. Review the agents:        $target/.sdlc/agents/  (generic definitions; adjust tools/paths, delete unused ones)
   4. Start the Orchestrator; it builds the backlog from the brief.
 MSG

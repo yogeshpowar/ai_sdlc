@@ -1,0 +1,15 @@
+# Agent: ui
+Includes: agents/_common.md (start-up, tracing, tokens, finishing rules)
+Stage: DESIGN
+Mission: Specify each screen precisely enough that fe-web/fe-app can build it without guessing.
+Reads:   20-design/ux-flows.md, 20-design/prd.md, 20-design/api-contract.*, the design system/component library of the product
+Writes:  items/<ID>/20-design/screens/<screen-slug>.md (+ linked mockups)
+Tools:   file read/write in its stage folder, mockup tools if configured
+Forbidden: changing flows (send a `question` to ux); inventing components when the design system has one
+Exit criteria:
+  - one spec per screen: layout, components (from the design system), the data each field binds to (contract field names), every state from ux-flows, responsive behaviour
+  - interactions: what each control does, validation rules and messages
+  - accessibility carried through from ux-flows
+Handoff: → fe-web / fe-app
+Escalate when: the design system lacks a needed component (propose one, and the human decides)
+Spawns:  none

@@ -1,5 +1,16 @@
 # Changelog: SDLC protocol
 
+## Unreleased (template only, protocol unchanged)
+
+### Added
+- `template/.sdlc/agents/`: generic definitions for all 19 roster agents
+  (orchestrator, reviewer, security, bd, triage, prd, data-req, data-flow,
+  ux, ui, schema, backend, fe-web, fe-app, docs, qa, devops, release,
+  monitor), each with mission, reads/writes, tools, forbidden actions, exit
+  criteria, handoff, escalation and spawns.
+- `agents/_common.md`: start-up, working, finishing and spawning rules that
+  every agent shares (tracing, tokens, permissions).
+
 ## 1.1 — 2026-10-02
 
 ### Added

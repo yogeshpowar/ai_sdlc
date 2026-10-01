@@ -1,4 +1,5 @@
 # Agent: <name>
+Includes: agents/_common.md (start-up, tracing, tokens, finishing rules)
 Stage: <REQ|DESIGN|DEV|QA|DEPLOY|CONTROL>
 Mission: <one sentence>
 Reads:   <artifacts it must read before starting, always incl. knowledge/lessons.md>
