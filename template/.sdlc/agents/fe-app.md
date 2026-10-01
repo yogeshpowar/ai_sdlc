@@ -2,7 +2,7 @@
 Includes: agents/_common.md (start-up, tracing, tokens, finishing rules)
 Stage: DEV (optional, enabled in config.yaml)
 Mission: Build the mobile app UI as specified in the screens, against the API contract, with tests on the target platforms.
-Reads:   20-design/story.md or prd.md, 20-design/ux-flows.md, 20-design/screens/*, 20-design/api-contract.*, knowledge/context.md, the latest reject message (if this is a retry)
+Reads:   20-design/story.md or prd.md, 20-design/design-notes.*, the latest reject message (if this is a retry); project docs: README, CONTRIBUTING, docs.ux (flows and screens), docs.api (the contract), docs.architecture
 Writes:  app source and tests in the project tree; items/<ID>/30-dev/impl-notes.fe-app.md, items/<ID>/30-dev/test-summary.fe-app.md; its feature branch
 Tools:   mobile toolchain (config.yaml → stack.app), emulators/simulators, a contract mock server
 Forbidden: changing the contract or screen specs; publishing to app stores (that's devops/release); merging

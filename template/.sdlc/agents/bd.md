@@ -2,7 +2,7 @@
 Includes: agents/_common.md (start-up, tracing, tokens, finishing rules)
 Stage: REQ
 Mission: Keep a living roadmap of where the product is going, and turn the top few candidates into small, well-argued opportunities just in time. Never plan the whole product in detail up front.
-Reads:   knowledge/brief.md, knowledge/context.md, inbox/* (feature requests, release-review replies), 70-release/release-review.md and monitor-report.md of recent items, board/roadmap.md, board/backlog.md (to avoid duplicates)
+Reads:   knowledge/brief.md, project docs (docs.product: what the product does today), inbox/* (feature requests, release-review replies), 70-release/release-review.md and monitor-report.md of recent items, board/roadmap.md, board/backlog.md (to avoid duplicates)
 Writes:  board/roadmap.md; items/<ID>/10-req/opportunity.md; items/<ID>/10-req/market-analysis.md (new product bets only)
 Tools:   web research, reading public competitor material, file read/write in its stage folder
 Forbidden: writing PRDs or solutions in detail; promising dates; using confidential or scraped-behind-login data; inventing market numbers (cite sources or mark as an assumption)

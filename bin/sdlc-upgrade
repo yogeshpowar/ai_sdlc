@@ -1,0 +1,348 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright © 2026 Doublefree.in and contributors.
+"""Upgrade a project's .sdlc/ to the protocol version in this ai_sdlc checkout.
+
+Safe by design (PROTO.md §6.12):
+  * Project data is never touched: items/, archive/, trace/, board/ (except the
+    protocol_version field), inbox/, outbox/, approvals/, knowledge/, tmp/, and
+    everything outside .sdlc/ apart from two .gitignore lines.
+  * Protocol files you never edited are replaced. Files you did edit
+    (config.yaml, agents/*.md, or anything else) get a three-way merge against
+    the template of your current version. A conflict leaves your file untouched
+    and writes <file>.sdlc-new and <file>.sdlc-merge next to it.
+  * It refuses to run with uncommitted changes or while agents are running,
+    so git is always your undo.
+  * Manual migration steps from CHANGELOG.md go into .sdlc/inbox/ as a
+    request, and the Orchestrator does them as a CHORE item.
+
+Usage: sdlc-upgrade <project-dir> [--dry-run] [--commit] [--force]
+       sdlc-upgrade --version
+"""
+import argparse, datetime, json, os, re, subprocess, sys, tempfile
+
+SDLC_HOME = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TEMPLATE = os.path.join(SDLC_HOME, "template", ".sdlc")
+TERMINAL = {"completed", "failed", "timed_out", "escalated", "cancelled"}
+
+# Files owned by the protocol, never by the project. They're also merged if
+# locally edited, so a human's tweak is never silently lost.
+PROTOCOL_OWNED = {"PROTO.md", "GUIDE.md"}          # copied from SDLC_HOME root
+REGENERATED = {"README.md"}                        # .sdlc/README.md: no human content
+# Never touched, whatever the template says.
+PROJECT_DATA_DIRS = ("items/", "archive/", "trace/", "inbox/", "outbox/",
+                     "approvals/", "tmp/")
+SEED_ONLY = ("board/", "knowledge/")               # created if missing, never updated
+
+
+def die(msg, code=1):
+    print(f"error: {msg}", file=sys.stderr)
+    sys.exit(code)
+
+
+def vtuple(v):
+    return tuple(int(x) for x in re.findall(r"\d+", v))
+
+
+def git(args, cwd, check=True):
+    r = subprocess.run(["git"] + args, cwd=cwd, capture_output=True, text=True)
+    if check and r.returncode != 0:
+        die(f"git {' '.join(args)} failed: {r.stderr.strip()}")
+    return r
+
+
+def project_name(sdlc):
+    try:
+        with open(os.path.join(sdlc, "config.yaml")) as f:
+            for line in f:
+                if line.startswith("project:"):
+                    return line.split(":", 1)[1].strip()
+    except FileNotFoundError:
+        pass
+    return os.path.basename(os.path.dirname(sdlc))
+
+
+def render(text, name, version, date):
+    return (text.replace("{{PROJECT}}", name).replace("{{VERSION}}", version)
+            .replace("{{DATE}}", date))
+
+
+def template_files_new():
+    """Relative path -> absolute source, for the new version (this checkout)."""
+    out = {}
+    for root, _, files in os.walk(TEMPLATE):
+        for fn in files:
+            if fn == "__pycache__" or fn.endswith(".pyc"):
+                continue
+            p = os.path.join(root, fn)
+            out[os.path.relpath(p, TEMPLATE)] = p
+    for fn in PROTOCOL_OWNED:
+        out[fn] = os.path.join(SDLC_HOME, fn)
+    return out
+
+
+def base_reader(old_version):
+    """Return (list_of_paths, read(path)->text|None) for the template at v<old>, or (None, None)."""
+    tag = f"v{old_version}"
+    if git(["rev-parse", "-q", "--verify", f"refs/tags/{tag}"], SDLC_HOME, check=False).returncode != 0:
+        return None, None
+    ls = git(["ls-tree", "-r", "--name-only", tag, "--", "template/.sdlc"], SDLC_HOME).stdout.split()
+    paths = [os.path.relpath(p, "template/.sdlc") for p in ls]
+    for fn in PROTOCOL_OWNED:
+        if git(["cat-file", "-e", f"{tag}:{fn}"], SDLC_HOME, check=False).returncode == 0:
+            paths.append(fn)
+
+    def read(rel):
+        src = rel if rel in PROTOCOL_OWNED else f"template/.sdlc/{rel}"
+        r = git(["show", f"{tag}:{src}"], SDLC_HOME, check=False)
+        return r.stdout if r.returncode == 0 else None
+    return set(paths), read
+
+
+def three_way(ours, base, theirs):
+    """Return (merged_text, clean: bool)."""
+    with tempfile.TemporaryDirectory() as d:
+        paths = []
+        for name, text in (("ours", ours), ("base", base), ("theirs", theirs)):
+            p = os.path.join(d, name)
+            with open(p, "w") as f:
+                f.write(text)
+            paths.append(p)
+        r = subprocess.run(["git", "merge-file", "-p", "-L", "yours", "-L", "base", "-L", "new"] + paths,
+                           capture_output=True, text=True)
+        return r.stdout, r.returncode == 0
+
+
+def live_runs(sdlc):
+    runs = {}
+    try:
+        with open(os.path.join(sdlc, "trace", "runs.jsonl")) as f:
+            for line in f:
+                try:
+                    e = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if e.get("event") == "spawned":
+                    runs[e.get("run_id")] = e.get("agent")
+                elif e.get("event") in TERMINAL:
+                    runs.pop(e.get("run_id"), None)
+    except FileNotFoundError:
+        pass
+    return runs
+
+
+def migration_notes(old, new):
+    """The 'Upgrading from …' sections of every CHANGELOG entry in (old, new]."""
+    try:
+        text = open(os.path.join(SDLC_HOME, "CHANGELOG.md")).read()
+    except FileNotFoundError:
+        return []
+    notes = []
+    for m in re.finditer(r"^## (\d+(?:\.\d+)+)\b.*?(?=^## |\Z)", text, re.M | re.S):
+        v = m.group(1)
+        if vtuple(old) < vtuple(v) <= vtuple(new):
+            up = re.search(r"^### Upgrading from.*?(?=^### |^## |\Z)", m.group(0), re.M | re.S)
+            if up:
+                notes.append((v, up.group(0).strip()))
+    return sorted(notes, key=lambda x: vtuple(x[0]))
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("project", nargs="?")
+    ap.add_argument("--dry-run", action="store_true", help="show the plan, change nothing")
+    ap.add_argument("--commit", action="store_true", help="commit the upgrade (sdlc: upgrade protocol …)")
+    ap.add_argument("--force", action="store_true", help="run even with a dirty tree or live agent runs")
+    ap.add_argument("--version", action="store_true")
+    a = ap.parse_args()
+
+    new = open(os.path.join(SDLC_HOME, "VERSION")).read().strip()
+    if a.version:
+        print(f"ai_sdlc protocol {new}")
+        return
+    if not a.project:
+        ap.error("project-dir is required")
+
+    proj = os.path.abspath(a.project)
+    sdlc = os.path.join(proj, ".sdlc")
+    if not os.path.isdir(sdlc):
+        die(f"{sdlc} not found. Use sdlc-init for a new project")
+    try:
+        old = open(os.path.join(sdlc, "PROTOCOL_VERSION")).read().strip()
+    except FileNotFoundError:
+        die("no .sdlc/PROTOCOL_VERSION; can't tell which version this project is on")
+
+    if vtuple(old) == vtuple(new):
+        print(f"Already on protocol {new}. Nothing to do.")
+        return
+    if vtuple(old) > vtuple(new):
+        die(f"project is on {old}, newer than this ai_sdlc ({new}). Downgrades aren't supported")
+
+    # Safety checks
+    if git(["rev-parse", "--is-inside-work-tree"], proj, check=False).returncode == 0:
+        dirty = git(["status", "--porcelain"], proj).stdout.strip()
+        if dirty and not a.force and not a.dry_run:
+            die("the project has uncommitted changes. Commit or stash first, so git can undo the upgrade (or --force)")
+    elif not a.force and not a.dry_run:
+        die("the project isn't a git repository; refusing without --force (no undo)")
+    live = live_runs(sdlc)
+    if live and not a.force and not a.dry_run:
+        die("agents are running (" + ", ".join(f"{v} {k}" for k, v in live.items()) +
+            "). Wait for them to finish, or stop the Orchestrator, then retry (or --force)")
+
+    name = project_name(sdlc)
+    today = datetime.date.today().isoformat()
+    newfiles = template_files_new()
+    base_paths, read_base = base_reader(old)
+    if base_paths is None:
+        print(f"note: tag v{old} not found in {SDLC_HOME}; edited files can't be merged and will get .sdlc-new copies to review")
+
+    plan = []   # (action, rel, detail)
+    writes = {}  # rel -> text (or None to mark executable copy from src)
+
+    def is_data(rel):
+        return rel.startswith(PROJECT_DATA_DIRS)
+
+    for rel, src in sorted(newfiles.items()):
+        if is_data(rel):
+            # Only seed missing scaffolding (e.g. trace/runs.jsonl, .gitkeep); never touch existing.
+            if not os.path.exists(os.path.join(sdlc, rel)):
+                writes[rel] = open(src).read()
+                plan.append(("create", rel, "missing scaffolding"))
+            continue
+        theirs = render(open(src).read(), name, new, today)
+        dest = os.path.join(sdlc, rel)
+        exists = os.path.exists(dest)
+        in_base = base_paths is not None and rel in base_paths
+
+        if rel in REGENERATED:
+            if not exists or open(dest).read() != theirs:
+                writes[rel] = theirs
+                plan.append(("replace", rel, "generated, no project content"))
+            continue
+        if rel.startswith(SEED_ONLY):
+            if not exists and not in_base:
+                writes[rel] = theirs
+                plan.append(("create", rel, f"new in {new}"))
+            elif not exists:
+                plan.append(("skip", rel, "you removed it; not re-created"))
+            continue
+        if not exists:
+            if in_base and rel.startswith("agents/"):
+                plan.append(("skip", rel, "you removed this agent; not re-created"))
+            elif in_base:
+                plan.append(("skip", rel, "you removed it; not re-created (new copy written as .sdlc-new)"))
+                writes[rel + ".sdlc-new"] = theirs
+            else:
+                writes[rel] = theirs
+                plan.append(("create", rel, f"new in {new}"))
+            continue
+
+        ours = open(dest).read()
+        if ours == theirs:
+            continue
+        base = render(read_base(rel), name, old, today) if in_base and read_base(rel) is not None else None
+        if base is not None and ours == base:
+            writes[rel] = theirs
+            plan.append(("update", rel, "unchanged by you"))
+        elif base is not None:
+            merged, clean = three_way(ours, base, theirs)
+            if clean:
+                writes[rel] = merged
+                plan.append(("merge", rel, "your edits kept, new changes merged"))
+            else:
+                writes[rel + ".sdlc-new"] = theirs
+                writes[rel + ".sdlc-merge"] = merged
+                plan.append(("CONFLICT", rel, "yours kept; see .sdlc-new and .sdlc-merge"))
+        else:
+            writes[rel + ".sdlc-new"] = theirs
+            plan.append(("REVIEW", rel, "edited and no base to merge from; yours kept, new copy in .sdlc-new"))
+
+    if base_paths is not None:
+        for rel in sorted(base_paths - set(newfiles)):
+            if not is_data(rel) and os.path.exists(os.path.join(sdlc, rel)):
+                plan.append(("kept", rel, f"no longer in the {new} template; see migration notes"))
+
+    notes = migration_notes(old, new)
+    width = max([len(p[1]) for p in plan] + [10])
+    print(f"Upgrade {proj}: protocol {old} → {new}{'  (dry run)' if a.dry_run else ''}\n")
+    for act, rel, detail in plan:
+        print(f"  {act:<9} {rel:<{width}}  {detail}")
+    if not plan:
+        print("  (no file changes)")
+    print("\n  untouched: code and everything outside .sdlc/, items/, archive/, trace/, inbox/, outbox/, approvals/, existing board/ and knowledge/ files")
+    if notes:
+        print("\nManual migration steps (they'll be left in .sdlc/inbox/ for the Orchestrator):")
+        for v, n in notes:
+            print(f"\n  [{v}]\n" + "\n".join("    " + l for l in n.splitlines()))
+    if a.dry_run:
+        return
+
+    for rel, text in writes.items():
+        dest = os.path.join(sdlc, rel)
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        tmp = dest + ".tmp-upgrade"
+        with open(tmp, "w") as f:
+            f.write(text)
+        src = newfiles.get(rel)
+        if src and os.access(src, os.X_OK):
+            os.chmod(tmp, 0o755)
+        os.replace(tmp, dest)
+
+    # Version bookkeeping (the only edits to project data, and both are one field/line)
+    sp = os.path.join(sdlc, "board", "state.json")
+    if os.path.exists(sp):
+        s = open(sp).read()
+        s2 = re.sub(r'("protocol_version"\s*:\s*")[^"]*(")', rf'\g<1>{new}\g<2>', s, count=1)
+        if s2 != s:
+            with open(sp, "w") as f:
+                f.write(s2)
+    ts = datetime.datetime.now(datetime.timezone.utc)
+    conflicts = [p for p in plan if p[0] in ("CONFLICT", "REVIEW")]
+    with open(os.path.join(sdlc, "UPGRADES.md"), "a") as f:
+        if f.tell() == 0:
+            f.write("# Protocol upgrades\n\nAppend-only record written by `ai_sdlc/bin/sdlc-upgrade`.\n\n")
+        f.write(f"- {ts:%Y-%m-%d %H:%M}Z: {old} → {new}; {len(plan)} file actions"
+                f"{', ' + str(len(conflicts)) + ' to review' if conflicts else ''}\n")
+    if notes:
+        ib = os.path.join(sdlc, "inbox", f"{ts:%Y%m%d-%H%M}-new-sdlc-upgrade.md")
+        with open(ib, "w") as f:
+            f.write(f"---\ntype: request\nby: human:sdlc-upgrade\ndate: {ts:%Y-%m-%d}\n---\n"
+                    f"The protocol was upgraded from {old} to {new}. Raise a CHORE item "
+                    f"(`CHORE-NNNN-sdlc-upgrade-{new}`) and do these migration steps through the normal "
+                    f"lifecycle (branch, review, commit). Don't edit protocol files by hand.\n")
+            for v, n in notes:
+                f.write(f"\n## For {v}\n\n{n}\n")
+            if conflicts:
+                f.write("\n## Files to reconcile\n\n" + "\n".join(
+                    f"- `.sdlc/{p[1]}`: {p[2]}" for p in conflicts) + "\n")
+    with open(os.path.join(sdlc, "PROTOCOL_VERSION"), "w") as f:
+        f.write(new + "\n")
+    gi = os.path.join(proj, ".gitignore")
+    lines = open(gi).read().splitlines() if os.path.exists(gi) else []
+    add = [l for l in (".sdlc/tmp/", ".sdlc/trace/transcripts/") if l not in lines]
+    if add:
+        with open(gi, "a") as f:
+            f.write("".join(l + "\n" for l in add))
+    st = os.path.join(sdlc, "bin", "sdlc-status")
+    if os.access(st, os.X_OK):
+        subprocess.run([st, "--write"], check=False)
+
+    print(f"\nDone: {old} → {new}." + (f" {len(conflicts)} file(s) need you: look for *.sdlc-new / *.sdlc-merge." if conflicts else ""))
+    if a.commit and conflicts:
+        print("Not committing: resolve the files above first (merge your edits into the file, delete the "
+              ".sdlc-new / .sdlc-merge copies), then commit with `sdlc: upgrade protocol "
+              f"{old} → {new}`.")
+    elif a.commit:
+        git(["add", "-A", ".sdlc", ".gitignore"], proj)
+        who = git(["config", "user.name"], proj, check=False).stdout.strip() or "unknown"
+        git(["commit", "-q", "-m", f"sdlc: upgrade protocol {old} → {new}",
+             "-m", f"Changed-By: human:{who}"], proj)
+        print("Committed: " + git(["log", "--oneline", "-1"], proj).stdout.strip())
+    else:
+        print("Review with `git diff` / `git status`, then commit. To undo everything: "
+              "`git checkout -- .sdlc .gitignore && git clean -fd .sdlc` (safe: the tree was clean before).")
+
+
+if __name__ == "__main__":
+    main()

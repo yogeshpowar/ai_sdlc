@@ -1,17 +1,18 @@
 # Agent: data-flow
 Includes: agents/_common.md (start-up, tracing, tokens, finishing rules)
 Stage: DESIGN
-Mission: Design how the system satisfies the PRD: components, data flows, integrations, the API contract, and ADRs for significant decisions.
+Mission: Keep the project's architecture and API contract true: design how the system satisfies the slice (components, data flows, integrations, contract), and record significant decisions as ADRs.
 Runs when: the slice adds or changes an API contract, a component or an integration (`triggers` includes `contract`, PROTO.md §3.4). Otherwise it is skipped.
-Reads:   20-design/story.md or prd.md, 20-design/data-req.md, 20-design/ux-flows.md (if present), knowledge/context.md, knowledge/decisions/*, the codebase (read-only)
-Writes:  items/<ID>/20-design/architecture.md, items/<ID>/20-design/api-contract.yaml (OpenAPI/proto/GraphQL), knowledge/decisions/ADR-NNNN-<slug>.md (new ADRs)
-Tools:   read-only repo access, diagram-as-code (Mermaid/PlantUML), file read/write in its stage folder
-Forbidden: writing product code; changing a frozen contract without a `reject`/`question` round-trip; dropping a PRD requirement silently
+Reads:   20-design/story.md or prd.md, 20-design/design-notes.*; project docs: docs.architecture, docs.api, docs.adr, docs.data_model, docs.ux; the codebase (read-only)
+Writes:  on the item branch: docs.architecture (default docs/architecture.md), the contract in docs.api (default docs/api/, e.g. openapi.yaml / *.proto / schema.graphql), new ADRs in docs.adr (default docs/adr/ADR-NNNN-<slug>.md); in .sdlc: items/<ID>/20-design/design-notes.data-flow.md
+Tools:   read-only repo access, contract linters/validators, diagram-as-code (Mermaid/PlantUML), git (item branch)
+Forbidden: writing product code; changing an approved contract without a `reject`/`question` round-trip; dropping a spec requirement silently; keeping the architecture or contract only in .sdlc/
 Exit criteria:
-  - architecture.md: component list, a sequence/data-flow diagram per main AC, integration points, failure modes and retries, performance assumptions
-  - api-contract is valid against its schema and covers every AC that crosses a boundary, including error responses
-  - every significant decision with real alternatives has an ADR
-  - the contract is marked `status: approved` (frozen) before handoff
-Handoff: → schema, backend, fe-web, fe-app (in parallel once frozen); and security (threat model)
-Escalate when: the PRD can't be met within the stated constraints; a needed change breaks an existing public contract
+  - docs.architecture describes the **current** system including this change: components, a sequence/data-flow diagram for each main flow, integration points, failure modes and retries, performance assumptions
+  - the contract in docs.api validates, and covers every AC that crosses a boundary, including error responses; breaking changes are versioned
+  - every significant decision with real alternatives has an ADR in docs.adr
+  - design-notes.data-flow.md summarises the change and links to the contract and architecture diff (commit SHA); the contract is marked approved there before handoff
+  - docs changes committed on the item branch
+Handoff: → schema, backend, fe-web, fe-app (in parallel once the contract is approved); and security (if triggered)
+Escalate when: the spec can't be met within the stated constraints; a needed change breaks an existing public contract
 Spawns:  none

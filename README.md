@@ -20,6 +20,7 @@ The protocol itself is [`PROTO.md`](PROTO.md). This repo is its canonical home.
 | `template/.sdlc/` | Blank `.sdlc/` skeleton that gets copied into each new project |
 | `template/.sdlc/agents/` | Generic definitions for every roster agent, plus `_common.md` (rules all agents share) |
 | `bin/sdlc-init` | Sets up the protocol in a project |
+| `bin/sdlc-upgrade` | Upgrades a project's `.sdlc/` to this version without touching its code, docs or agent records |
 | `LICENSE` | GPL-3.0-only |
 
 ## Starting a new project
@@ -62,11 +63,27 @@ Then:
    `.sdlc/TODO.md` has the same report as a file
    ([TODO.MD](https://github.com/doublefreein/TODO.MD) format).
 
+## Upgrading a project
+
+```sh
+~/working/ai_sdlc/bin/sdlc-upgrade ~/working/<project> --dry-run   # the plan
+~/working/ai_sdlc/bin/sdlc-upgrade ~/working/<project> --commit    # do it
+```
+
+Projects stay on their pinned version until you run this. It replaces the
+protocol files, three-way-merges the ones you customised (your copy is kept
+on conflict), creates new files, and never touches code, `docs/`, items,
+traces, approvals or the board. It refuses while agents are running or with
+uncommitted changes. Manual migration steps go to the project's `inbox/`
+for the Orchestrator. Details: PROTO.md §6.12 and GUIDE.md §9.
+
 ## Changing the protocol
 
-Edit `PROTO.md` here, bump `VERSION`, and add a `CHANGELOG.md` entry. Existing
-projects keep their pinned copy until you deliberately copy the new
-`PROTO.md` into their `.sdlc/` and update their `PROTOCOL_VERSION`.
+Edit `PROTO.md` and/or the template here, bump `VERSION`, add a
+`CHANGELOG.md` entry, and **tag the release `v<VERSION>`**. The tag is the
+merge base that `sdlc-upgrade` uses for projects on that version. If
+projects need more than a file update, add an "Upgrading from …" section to
+the entry.
 
 ## License
 

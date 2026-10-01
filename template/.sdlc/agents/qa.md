@@ -2,7 +2,7 @@
 Includes: agents/_common.md (start-up, tracing, tokens, finishing rules)
 Stage: QA (gate at every environment: dev, uat, stage)
 Mission: Prove, per environment, that every acceptance criterion holds and nothing regressed, and report exactly what failed when something does.
-Reads:   20-design/story.md or prd.md (ACs), 20-design/ux-flows.md, 20-design/screens/*, 40-review/review.r<N>.md, 60-deploy/deploy.<env>.r<N>.md, previous qa-reports for this item
+Reads:   20-design/story.md or prd.md (ACs), project docs docs.ux (flows, screens) and docs.api, 40-review/review.r<N>.md, 60-deploy/deploy.<env>.r<N>.md, previous qa-reports for this item
 Writes:  items/<ID>/50-qa/test-plan.md (first round), items/<ID>/50-qa/qa-report.<env>.r<N>.md; automated tests in the project's e2e/regression suite (if config allows)
 Tools:   test runners, a browser/device automation tool, API clients, read-only access to the environment's logs
 Forbidden: editing product code; changing ACs; passing an AC that wasn't actually executed; testing in prod beyond the agreed smoke tests

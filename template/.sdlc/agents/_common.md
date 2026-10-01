@@ -15,6 +15,16 @@ tokens and permissions, which are never relaxed.
 6. Write the `started` event. Log every read as a `read` detail event.
 
 ## While working
+- **Two homes, never mixed (PROTO.md §6.1).** Durable knowledge, meaning the
+  architecture, API contract, data model, ADRs, UX flows and screens, threat
+  model, glossary, runbook, README and CONTRIBUTING, lives in the **project
+  tree** (`config.yaml → docs`) and is edited on the item branch, like code.
+  `.sdlc/` holds only process and history (specs, design notes, reviews,
+  reports, messages, traces). A design note in `.sdlc/` summarises a change
+  and links to the docs diff. It is never the only copy.
+- Read the project's own docs (README, CONTRIBUTING, the docs your `Reads`
+  names) the same way a human developer would, before relying on anything
+  in `.sdlc/`.
 - Write protocol files **only** in your own stage folder, and only under
   `.sdlc/`. Write project files only in the paths your `Writes` allows.
 - Every protocol file you write has the full front matter (§6.4) with your

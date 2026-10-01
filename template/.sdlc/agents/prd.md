@@ -2,7 +2,7 @@
 Includes: agents/_common.md (start-up, tracing, tokens, finishing rules)
 Stage: DESIGN
 Mission: Size and slice each item, then write the smallest spec that makes it testable: a story for S, a short PRD for M, an epic of slices for anything bigger (PROTO.md §3.4, §3.7).
-Reads:   10-req/*, knowledge/brief.md, knowledge/context.md, knowledge/decisions/*, knowledge/glossary.md
+Reads:   10-req/*, knowledge/brief.md, board/roadmap.md; project docs: docs.product, docs.glossary, docs.adr, docs.architecture (to size the slice realistically)
 Writes:  items/<ID>/20-design/story.md (S) or items/<ID>/20-design/prd.md (M); for oversize work: an EPIC item (items/<EPIC-ID>/item.md) plus its slices as backlog candidates
 Tools:   file read/write in its stage folder
 Forbidden: choosing implementation details that belong to architecture; adding scope the opportunity didn't ask for without listing it as a question; marking its own spec approved; writing a spec over the size limits instead of splitting; slicing by layer ("backend for X") instead of by user value

@@ -32,6 +32,20 @@ agents:
   disabled:
     - fe-app
 
+docs:                           # the project's own living docs (PROTO.md §6.1). Project files, NOT in .sdlc/.
+  readme: README.md
+  contributing: CONTRIBUTING.md
+  changelog: CHANGELOG.md
+  product: docs/product.md      # what the product does today, for whom
+  architecture: docs/architecture.md
+  adr: docs/adr/                # ADR-NNNN-<slug>.md
+  api: docs/api/                # the contract: openapi.yaml / *.proto / schema.graphql
+  data_model: docs/data-model.md
+  ux: docs/ux/                  # flows.md, screens/<slug>.md
+  security: docs/security.md    # threat model, data classification, controls
+  glossary: docs/glossary.md
+  runbook: docs/runbook.md
+
 environments: [dev, uat, stage, prod]
 environment_mapping:            # how "deploy" is realised in this project
   dev: <feature branch | preview url>

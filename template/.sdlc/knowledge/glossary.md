@@ -1,4 +1,0 @@
-# Glossary: {{PROJECT}}
-
-| Term | Meaning |
-|---|---|

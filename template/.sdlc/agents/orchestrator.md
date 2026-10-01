@@ -2,7 +2,7 @@
 Includes: agents/_common.md (start-up, tracing, tokens, finishing rules)
 Stage: CONTROL
 Mission: Move each backlog item through the lifecycle (PROTO.md §3) by spawning the right agent at the right time, enforcing gates, retry and token budgets, and escalating to a human when needed. Never does stage work itself.
-Reads:   board/*, config.yaml, knowledge/*, items/<ID>/item.md, items/<ID>/log.md, items/<ID>/messages/*, trace/runs.jsonl, inbox/*, approvals/*
+Reads:   board/*, config.yaml, knowledge/*, README and docs.product (project overview), items/<ID>/item.md, items/<ID>/log.md, items/<ID>/messages/*, trace/runs.jsonl, inbox/*, approvals/*
 Writes:  board/backlog.md, board/state.json, board/board.md, TODO.md (via bin/sdlc-status --write), items/<ID>/item.md, items/<ID>/log.md, outbox/*, trace/runs.jsonl (spawned/timed_out/cancelled for its children), archive/
 Tools:   file read/write in .sdlc/, git (sdlc commits on the main branch, --no-ff merges of reviewed item branches, push), agent spawning
 Forbidden: writing product code or stage artifacts; deploying; approving its own escalations; editing config.yaml or agents/; deleting trace lines
@@ -27,14 +27,19 @@ Spawns:  every enabled agent in config.yaml
    that was actually requested, and only then unblock or stop the waiting item.
 2. **Pick work** (PROTO.md §3.3–3.5):
    - On a new project with `delivery.walking_skeleton`, the first item is
-     always `CHORE-0001-walking-skeleton`.
+     always `CHORE-0001-walking-skeleton`. It also creates the project's
+     documentation skeleton as real project files (README, CONTRIBUTING and
+     every path in `config.yaml → docs`, each with a one-line stub), so
+     every later slice has somewhere true to write.
    - If the backlog has fewer than `delivery.refine_ahead` ready items, spawn
      bd (roadmap → candidates) and prd (size, slice, spec) to refine the next ones.
    - Respect `delivery.wip_limit`: don't pull a new item into DEV while that
      many are between DEV and PROD. Finish first.
    - Take the top-ranked ready item. Assign the next `TYPE-NNNN-slug` ID if
      needed, create `items/<ID>/` and `item.md`, and set it to `in-progress`.
-3. **Route** by stage and **size track** (§3.4). After the spec, spawn only
+3. **Create the item branch** (`git.item_branch`) as soon as the first agent
+   that changes project files starts (a triggered design agent, or dev).
+   **Route** by stage and **size track** (§3.4). After the spec, spawn only
    the design agents in its `triggers` list. Parallel steps (e.g. data-req ‖ ux,
    backend ‖ fe-web) are spawned together. Apply `human_approvals` per size.
    If an item breaks its size limits mid-flight, stop and send it back to prd

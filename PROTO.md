@@ -14,8 +14,8 @@ All coordination files live in `.sdlc/` (section 6), apart from the project's ow
 1. **One agent, one role, one context.** Each agent keeps its own context and
    never relies on another agent's memory.
 2. **Artifacts are the only shared memory.** Agents talk to each other only
-   through versioned files in the artifact store (section 6). If it isn't
-   written down, the next agent can't see it.
+   through versioned files (section 6). If it isn't written down, the next
+   agent can't see it.
 3. **Every stage has a gate.** Work moves forward only when the stage's exit
    criteria pass. Failing a gate sends work back, with a written reason.
 4. **Least privilege.** Each agent can touch only what its role needs (QA can't
@@ -33,6 +33,10 @@ All coordination files live in `.sdlc/` (section 6), apart from the project's ow
    the way to prod, with process sized to the item (3.3, 3.4).
 9. **The human steers after every release.** What to build next is decided
    from what just shipped, not from a plan made at the start (3.5, 3.6).
+10. **The project outlives the agents.** Durable knowledge (architecture,
+   API contract, data model, ADRs, UX, threat model, runbook) lives in the
+   project's own `docs/`, for every future developer, human or agent.
+   `.sdlc/` is only the agents' process record (6.1).
 
 ---
 
@@ -58,10 +62,15 @@ All coordination files live in `.sdlc/` (section 6), apart from the project's ow
 | Agent | Input → Output |
 |---|---|
 | **PRD** | `opportunity.md` → sizes and slices the item (3.4). S → `story.md` (story + ≤3 testable ACs); M → `prd.md` (goal, non-goals, stories, ≤5 testable ACs, success metric); too big → an `EPIC` of slices. Lists the design `triggers`. *Human sign-off for the sizes in `human_approvals.spec`.* |
-| **Data Requirements** | `prd.md` → `data-req.md`: entities, fields, ownership, retention, PII classification |
-| **Data Flow / Architecture** | `prd.md`, `data-req.md` → `architecture.md` + `api-contract` (OpenAPI/proto): components, sequence/data-flow diagrams, integration points, ADRs for big decisions |
-| **UX** | `prd.md` → `ux-flows.md`: user journeys, states (empty/loading/error), accessibility |
-| **UI / Screens** | `ux-flows.md` → `screens/`: screen specs or mockups for every state |
+| **Data Requirements** | spec → updates `docs/data-model.md`: entities, fields, ownership, retention, PII classification |
+| **Data Flow / Architecture** | spec, data model → updates `docs/architecture.md` and the contract in `docs/api/` (OpenAPI/proto/GraphQL): components, sequence/data-flow diagrams, integration points; new ADRs in `docs/adr/` |
+| **UX** | spec → updates `docs/ux/` flows: user journeys, states (empty/loading/error), accessibility |
+| **UI / Screens** | flows → updates `docs/ux/screens/`: screen specs or mockups for every state |
+
+> Design agents edit the **project's living docs on the item branch**, and
+> those docs are reviewed and merged with the code. In `.sdlc/` they leave
+> only a short `design-notes.<agent>.md` saying what changed and why, with a
+> link to the commit (6.1). Paths come from `config.yaml → docs`.
 
 > Design agents run **only when triggered** by the slice (3.4). When several
 > are, the order is PRD → (Data Req ‖ UX) → (Data Flow ‖ UI). `‖` = can run in parallel.
@@ -70,14 +79,14 @@ All coordination files live in `.sdlc/` (section 6), apart from the project's ow
 
 | Agent | Input → Output |
 |---|---|
-| **Schema / DB** | `data-req.md`, `architecture.md` → migrations (forward + rollback), seed data. Runs first. |
-| **Backend** | `api-contract`, schema → service code + unit/integration tests |
-| **Frontend – Web** | `api-contract`, `screens/` → web app + component tests (against a contract mock) |
+| **Schema / DB** | `docs/data-model.md`, `docs/architecture.md` → migrations (forward + rollback), seed data. Runs first. |
+| **Backend** | contract in `docs/api/`, schema → service code + unit/integration tests |
+| **Frontend – Web** | contract in `docs/api/`, `docs/ux/screens/` → web app + component tests (against a contract mock) |
 | **Frontend – App** *(optional)* | same as Web, for mobile. Enabled in `.sdlc/config.yaml`. |
-| **Docs** | All of the above → README, API docs, runbook updates |
+| **Docs** | All of the above → keeps README, CONTRIBUTING, `docs/product.md`, user docs, API reference, runbook and glossary true, so the project passes the deletion test (6.1) |
 
-> Once `api-contract` is frozen, BE and FE work in parallel. Changing the
-> contract mid-build sends the item back to Design.
+> Once the contract change in `docs/api/` is approved, BE and FE work in
+> parallel. Changing the contract mid-build sends the item back to Design.
 
 ### 2.4 Testing (QA): a gate, not a stage
 
@@ -118,7 +127,7 @@ through it one after another, and each release feeds the next choice (3.3–3.6)
 |---|---|---|
 | Code bug found by QA (any env) | DEV | Defect ticket attached; environment is rolled back if needed |
 | Acceptance criterion untestable or ambiguous | DESIGN (PRD agent) | Not a dev problem, so don't bounce it to dev |
-| Design infeasible / contract change needed | DESIGN | Reviewer or dev raises `design-issue.md` |
+| Design infeasible / contract change needed | DESIGN | Reviewer or dev sends a `reject` message to the design agent that owns the doc |
 | Requirement wrong / out of date | REQ | Rare; Orchestrator confirms with a human |
 | Security blocker | Owning stage | Security agent names the owner |
 | Prod smoke/monitor failure | DevOps **rollback** first, then Triage → fast lane | Restore service first, fix second |
@@ -147,7 +156,9 @@ shipping small, working increments and looking at them.
 - **Walking skeleton first.** When `delivery.walking_skeleton` is on, a
   project's first item (`CHORE-0001-walking-skeleton`) takes a trivial
   "hello world" through the real pipeline all the way to prod. That proves
-  build, deploy, rollback and the status view before any feature work.
+  build, deploy, rollback and the status view before any feature work. It
+  also creates the project's README, CONTRIBUTING and `docs/` skeleton
+  (`config.yaml → docs`) as real project files.
 - **Refine just in time.** Only the next `delivery.refine_ahead` items are
   refined in detail. Everything else stays a one-line candidate on the
   roadmap until it gets close (3.5).
@@ -250,7 +261,7 @@ on with the proposed next item and picks up the reply whenever it arrives.
 "which approach is cheaper?", "do users even want Y?".
 
 - They are time-boxed (`delivery.spike_max_tokens`) and the output is a
-  **decision**: an ADR in `knowledge/decisions/` and/or new roadmap
+  **decision**: an ADR in `docs/adr/` (a project file, merged on its own) and/or new roadmap
   candidates. It is never production code. Throwaway code stays on the
   spike branch and is not merged.
 - Track: `10-req/question.md` → the agent best suited to answer it
@@ -266,9 +277,9 @@ on with the proposed next item and picks up the reply whenever it arrives.
 | Gate | Must be true to pass |
 |---|---|
 | **REQ → DESIGN** | **Definition of Ready** (3.4): one user, one outcome; problem and success signal stated; within size limits or split into an epic; duplicate check against backlog done |
-| **DESIGN → DEV** | Spec (`story.md`/`prd.md`) approved per `human_approvals.spec`; every AC testable; for each **triggered** area only: contract frozen, data-req done, threat model done, screens cover all states |
+| **DESIGN → DEV** | Spec (`story.md`/`prd.md`) approved per `human_approvals.spec`; every AC testable; for each **triggered** area only, the matching project doc is updated on the item branch: contract (`docs/api/`) approved, data model, threat model (`docs/security.md`), screens covering all states |
 | **DEV → REVIEW** | Builds; lint/vet clean; unit tests pass; coverage ≥ target; migrations have rollback; docs updated; **all work committed on the item branch (and pushed, if a remote is set)** |
-| **REVIEW → QA** | Reviewer approves against the PRD; security scan clean; `lessons.md` checklist ticked |
+| **REVIEW → QA** | Reviewer approves against the spec; **docs match the code** (every behaviour, contract, schema or architecture change is reflected in README/`docs/` on the same branch); security scan clean; `lessons.md` checklist ticked |
 | **QA@env → next env** | 100% of acceptance criteria pass (with the feature flag on, and nothing changed with it off); no open Sev1/Sev2; regression suite green |
 | **STAGE → PROD** | All of the above **plus** explicit human approval (committed, and pinned to the commit SHA being deployed) and a rollback plan |
 | **PROD → RELEASED** | Smoke tests pass; monitor window clean (e.g. 30 min); CHANGELOG published; release review sent to the human (3.6) |
@@ -276,7 +287,8 @@ on with the proposed next item and picks up the reply whenever it arrives.
 ### 4.2 Definition of Done
 The slice is in prod and **functionally complete for its user**. Nothing
 half-built is visible unless it's behind an off flag. Its success signal is
-instrumented, docs and CHANGELOG are updated, the release review has been
+instrumented, the project's own docs (README, `docs/`) and CHANGELOG
+describe the system as it now is, the release review has been
 sent, and the item is closed with links to every artifact.
 
 ### 4.3 Fast lane (bugs and hotfixes)
@@ -311,18 +323,32 @@ Spawns:  <sub-agents it may spawn, or "none">; it mints and traces their run IDs
 
 ### 6.1 The separation rule
 
+The project is for **everyone who will ever work on it**: humans and
+agents, today and years from now. `.sdlc/` is for **the agents' process**.
 Files in a repo fall into exactly one of two kinds:
 
 | Kind | What it is | Where it lives | Who writes it |
 |---|---|---|---|
-| **Project files** | The product: source, tests, migrations, configs, README, user docs, CHANGELOG | Anywhere in the project tree **except** `.sdlc/` | Humans and agents |
-| **Protocol files** | How the work is coordinated: backlog, state, specs, handoffs, reviews, QA reports, approvals, escalations | **Only** inside `.sdlc/` | Agents (humans only in the places listed in 6.6) |
+| **Project files** | The product **and its living knowledge**: source, tests, migrations, configs, CI/infra, README, CONTRIBUTING, CHANGELOG, and `docs/` (product overview, architecture, ADRs, the API contract, data model, UX flows and screens, threat model, glossary, runbook, user docs) | Anywhere in the project tree **except** `.sdlc/`. Doc paths are set in `config.yaml → docs` | Humans and agents, on item branches, reviewed with the code |
+| **Protocol files** | How the work was coordinated: backlog, roadmap, state, item specs (`story.md`/`prd.md`), per-item design notes, handoffs, reviews, QA reports, deploy records, approvals, escalations, traces, lessons for agents | **Only** inside `.sdlc/` | Agents (humans only in the places listed in 6.6) |
 
+**The deletion test.** Delete `.sdlc/`. A new developer, human or agent,
+must still be able to understand, build, run, test, deploy and change the
+product from the project tree alone. You lose the *history of how* it was
+built, but nothing about *what it is or why*.
+
+- **Current truth vs history.** The project's docs say how the system is
+  *now*, and agents keep them true on every item branch. `.sdlc/` records
+  how it *got* that way. A per-item design note summarises a change and
+  links to the docs diff. It is never the only copy of anything durable.
 - An agent **never** writes a coordination file outside `.sdlc/`. No `PRD.md`,
   `REVIEW.md`, `TODO.md` or `STATUS.md` at the repo root.
+- An agent **never** keeps durable knowledge only inside `.sdlc/`. If a
+  future developer would need it, it goes in the project tree.
 - Nothing inside `.sdlc/` is part of the product. Builds, tests, packaging and
-  deploys must ignore it. Deleting `.sdlc/` loses the history but never breaks
-  the product.
+  deploys must ignore it.
+- Agents read the project's own docs (README, CONTRIBUTING, `docs/`) the
+  same way a human does. They are the shared context.
 - When a protocol file needs to point at a project file (e.g. a review of
   `internal/api/user.go`), it **links to it by repo-relative path** and never
   copies it.
@@ -341,6 +367,7 @@ Files in a repo fall into exactly one of two kinds:
     sdlc-watch                      # live terminal view for humans (read-only)
   README.md                         # generated: "this dir is managed by PROTO.md, don't hand-edit"
   PROTOCOL_VERSION                  # e.g. 1.0, so agents can detect an out-of-date layout
+  UPGRADES.md                       # append-only upgrade history, written by sdlc-upgrade (6.12)
   config.yaml                       # project config (section 9)
   agents/                           # agent definitions (section 5)
     <agent>.md
@@ -350,10 +377,9 @@ Files in a repo fall into exactly one of two kinds:
     state.json                      # machine state: item → stage, owner, retries, env versions
     board.md                        # generated human-readable view of state.json
   knowledge/
+    brief.md                        # the human's brief: input to bd/prd
     lessons.md                      # learned mistakes and checks, read by every agent
-    glossary.md                     # domain terms
-    decisions/                      # project-wide ADRs
-      ADR-0001-<slug>.md
+                                    # (architecture, ADRs, glossary, etc. live in the project's docs/, 6.1)
   items/
     <ITEM-ID>/                      # one folder per backlog item (6.3)
       item.md                       # header card: title, type, priority, current stage, links
@@ -394,7 +420,7 @@ The gaps leave room to add stages later (e.g. `45-security`).
 | Stage folder | Files |
 |---|---|
 | `10-req/` | `opportunity.md`, `market-analysis.md` (new product bets only), `bug-report.md`, or `question.md` (spikes) |
-| `20-design/` | `story.md` (S) or `prd.md` (M), `data-req.md`, `architecture.md`, `api-contract.yaml`, `ux-flows.md`, `threat-model.md`, `screens/<screen-slug>.md` |
+| `20-design/` | `story.md` (S) or `prd.md` (M); `design-notes.<agent>.md` per triggered design agent (what changed in which project doc and why, plus the commit). The docs themselves live in the project tree |
 | `30-dev/` | `impl-notes.<agent>.md` (e.g. `impl-notes.backend.md`), `test-summary.<agent>.md` |
 | `40-review/` | `review.r<N>.md`, `security-scan.r<N>.md` |
 | `50-qa/` | `test-plan.md`, `qa-report.<env>.r<N>.md` (e.g. `qa-report.uat.r2.md`) |
@@ -404,7 +430,7 @@ The gaps leave room to add stages later (e.g. `45-security`).
 - `r<N>` is the **round** (attempt number). A failed QA round doesn't overwrite
   the report. `r2` sits next to `r1`, so the history of each round-trip stays
   visible. The retry budget counts these.
-- Specs (`prd.md`, `architecture.md`, …) are **single living files**. Their
+- Specs (`story.md`, `prd.md`) and design notes are **single living files**. Their
   history is git plus the `version` field in the header. Reports are
   **immutable once written**, and a new round creates a new file.
 
@@ -488,6 +514,8 @@ from a `prd.md` whose status isn't `approved`.
 | `items/*/<NN-stage>/*` | that stage's agents | read |
 | `items/*/messages/*` | the sending agent (create only) | read |
 | `knowledge/lessons.md` | Reviewer and QA append; Orchestrator curates | read (mandatory) |
+| `knowledge/brief.md` | humans | read |
+| project docs (`config.yaml → docs`) | the owning design agent or docs agent, **on the item branch**; humans any time | everyone reads; reviewed with the code |
 | `agents/*`, `config.yaml` | humans | read |
 | `inbox/`, `approvals/` | humans | read |
 | `outbox/` | agents | humans read |
@@ -495,7 +523,8 @@ from a `prd.md` whose status isn't `approved`.
 | `trace/runs/<date>/<RUN-ID>.jsonl` | that run only, append only | read |
 | `trace/transcripts/` | the agent harness | humans read when debugging |
 | `TODO.md` | Orchestrator, only by running `bin/sdlc-status --write` | humans read / watch |
-| `bin/*` | humans (copied from ai_sdlc) | everyone runs |
+| `bin/*`, `PROTO.md`, `GUIDE.md` | `ai_sdlc/bin/sdlc-upgrade` only (6.12) | everyone reads / runs |
+| `UPGRADES.md` | `sdlc-upgrade` (append only) | read |
 | `tmp/` | anyone | not trusted, not read across agents |
 
 Upstream artifacts are read-only for downstream agents. To change one, send a
@@ -511,7 +540,7 @@ minutes of work. **A human approval is committed the moment it is made.**
 
 | What | Branch | Committed by |
 |---|---|---|
-| Product code, tests, migrations, docs for an item | the item branch `feature/<ITEM-ID>` (or `fix/` / `hotfix/`), never the main branch directly | the dev agent doing the work |
+| Product code, tests, migrations and **project docs** (`docs/`, README, …) for an item | the item branch `feature/<ITEM-ID>` (or `fix/` / `hotfix/`), never the main branch directly. It is created when the first agent that changes project files starts: a triggered design agent, or dev | the agent doing the work |
 | Everything under `.sdlc/` | the **main branch** only (`config.yaml` → `git.main_branch`) | the Orchestrator (the single writer, so no conflicts) |
 | Merge of an item branch | main branch, `--no-ff`, only after `review` is approved | the Orchestrator |
 | Release tag `v<X.Y.Z>` | main branch, on the deployed commit | release |
@@ -585,7 +614,8 @@ Before doing anything, an agent:
 1. Takes the `RUN-ID` its spawner gave it. If it has none, it stops: untraced runs aren't allowed.
    A dev agent then checks out its item branch and confirms the tree is clean (6.7).
 2. Reads `.sdlc/PROTOCOL_VERSION` and stops if it doesn't support that version.
-3. Reads its own `agents/<agent>.md`, `config.yaml`, and `knowledge/lessons.md`.
+3. Reads its own `agents/<agent>.md`, `config.yaml`, `knowledge/lessons.md`,
+   and the project's README, CONTRIBUTING and the docs its `Reads` names.
 4. Reads the latest message addressed to it in `items/<ITEM-ID>/messages/`.
 5. Reads only the artifacts listed in its `Reads`, checking each one's header status.
 6. Writes the `started` event (6.9) and logs each read as a `read` detail event.
@@ -834,6 +864,47 @@ bash + python3. Run it in a spare terminal, or use
 }
 ```
 
+### 6.12 Upgrading a project to a new protocol version
+
+A project keeps its pinned copy of the protocol (`PROTO.md`,
+`PROTOCOL_VERSION`) until a human upgrades it deliberately, with
+`ai_sdlc/bin/sdlc-upgrade <project>`. The upgrade must **never** change the
+project's code, its docs, or the agents' records.
+
+**What happens to each file:**
+
+| Files | On upgrade |
+|---|---|
+| Everything outside `.sdlc/` (code, `docs/`, README, …) | **never touched**, except two `.gitignore` lines if missing |
+| `items/`, `archive/`, `trace/`, `inbox/`, `outbox/`, `approvals/`, `tmp/` | **never touched** (missing scaffolding such as `.gitkeep` is created) |
+| `board/*`, `knowledge/*` | existing files **never touched**; files new in this version are created. The only edit is `protocol_version` in `state.json` |
+| Protocol files you never edited: `PROTO.md`, `GUIDE.md`, `bin/*`, `agents/*` | replaced with the new version |
+| Files you did edit: typically `config.yaml` and `agents/*.md` | **three-way merge** (your copy, the template of your old version, the new template). A clean merge keeps your edits and adds the new changes. On a conflict **your file is kept as is**, and the new version and the merge with markers are written next to it as `<file>.sdlc-new` and `<file>.sdlc-merge` |
+| An agent file you deleted (e.g. a disabled agent) | not re-created |
+| Files dropped from the template | kept, and listed so a migration step can move their content |
+| `.sdlc/README.md`, `TODO.md` | regenerated (no human content) |
+
+**Safety rules:**
+- It refuses to run if the project has uncommitted changes, so git is always the undo.
+- It refuses to run while agents are running (a `spawned` run with no
+  terminal event in `trace/runs.jsonl`). Stop the Orchestrator first.
+- No downgrades. `--dry-run` shows the plan without changing anything.
+- `--commit` commits the upgrade as `sdlc: upgrade protocol X → Y`
+  (`Changed-By: human:…`), but only when there is nothing left to reconcile.
+- It appends a line to `.sdlc/UPGRADES.md`, the project's upgrade history.
+
+**Migration steps that need judgement** (moving content, reshaping data)
+are written in each version's CHANGELOG entry under "Upgrading from …".
+The upgrade tool copies them into `inbox/<ts>-new-sdlc-upgrade.md`, together
+with any files to reconcile. The Orchestrator then runs them as a normal
+`CHORE-NNNN-sdlc-upgrade-<version>` item (branch, review, commits), so even
+the migration is traced and reviewed.
+
+**For protocol maintainers:** every release is tagged `v<VERSION>` in
+`ai_sdlc`, because the tag is the merge base for projects on that version.
+Any change that needs more than a file update gets an "Upgrading from …"
+section in the CHANGELOG.
+
 ---
 
 ## 7. Environments and promotion
@@ -841,7 +912,7 @@ bash + python3. Run it in a spare terminal, or use
 | Env | Purpose | Who deploys | Gate |
 |---|---|---|---|
 | dev | per-branch builds, unit and integration tests | CI | DEV → REVIEW |
-| uat | functional acceptance against the PRD | DevOps | QA@uat |
+| uat | functional acceptance against the spec | DevOps | QA@uat |
 | stage | prod-like data and config, perf and regression | DevOps | QA@stage + human |
 | prod | live | DevOps | smoke + monitor |
 
@@ -878,6 +949,19 @@ agents:
             data-flow, ux, ui, schema, backend, fe-web, docs, qa, devops,
             release, monitor]
   disabled: [fe-app]            # e.g. a CLI or API-only project
+docs:                           # 6.1: the project's own living docs (project files, not .sdlc/)
+  readme: README.md
+  contributing: CONTRIBUTING.md
+  changelog: CHANGELOG.md
+  product: docs/product.md
+  architecture: docs/architecture.md
+  adr: docs/adr/
+  api: docs/api/                # openapi.yaml / *.proto / schema.graphql
+  data_model: docs/data-model.md
+  ux: docs/ux/                  # flows.md, screens/<slug>.md
+  security: docs/security.md
+  glossary: docs/glossary.md
+  runbook: docs/runbook.md
 environments: [dev, uat, stage, prod]
 environment_mapping:            # how "deploy" is realised in this project
   uat: <k8s namespace | git branch | url>
@@ -939,6 +1023,8 @@ The protocol stays the same and only the roster changes.
 - Commit hygiene: time between commits during runs, uncommitted-work
   recoveries (6.7 start-up check), time from human approval to its commit
 - Repeat-mistake rate (the same `lessons.md` entry triggered again)
+- Doc drift: items sent back at review for "docs don't match the code"; age of
+  each `docs/` file vs the last code change in its area
 - From `trace/`: runs per item, run duration per agent (p50/p95), failed or
   timed-out run rate per agent, orphaned runs, retries per stage
 - **Tokens** (6.10): tokens per item, per agent (p50/p95 per run), per stage;

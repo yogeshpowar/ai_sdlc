@@ -41,11 +41,44 @@ steers after every release.
   flags, release writes the release review.
 - GUIDE.md: "How the work flows", brief as a direction, the release review
   as the human's main job, an updated kickoff prompt and config table.
+- **Project knowledge lives in the project (§6.1, principle 10).** The
+  architecture, API contract, data model, ADRs, UX flows and screens,
+  threat model, glossary and runbook are project files in `docs/` (paths in
+  the new `config.yaml → docs` map). Design agents edit them on the item
+  branch and they are reviewed with the code. `.sdlc/` keeps only process
+  and history, with per-item `design-notes.<agent>.md` linking to the docs
+  diff. A new deletion test: without `.sdlc/`, the project must still be
+  fully understandable. The reviewer gate checks that docs match the code.
+  The walking skeleton creates the `docs/` skeleton. The item branch starts
+  at the first project-file change (design or dev).
+- **`bin/sdlc-upgrade` (§6.12):** upgrades a project in place without touching
+  code, `docs/` or agent records. It replaces untouched protocol files,
+  three-way-merges customised ones against the old version's tag (on
+  conflict, the project's file is kept and `.sdlc-new`/`.sdlc-merge` copies
+  are written), creates new files, never re-creates deleted agents, and
+  refuses with a dirty tree or live agent runs. `--dry-run`; `--commit`
+  only when nothing is left to reconcile. Writes `.sdlc/UPGRADES.md` and
+  an `inbox/` request with the CHANGELOG's manual steps, for the
+  Orchestrator to do as a CHORE item.
+- Removed from the template: `knowledge/context.md`, `knowledge/glossary.md`,
+  `knowledge/decisions/` (now `README`/`docs/architecture.md`,
+  `docs/glossary.md`, `docs/adr/`).
 
 ### Upgrading from 1.3
-Replace `human_approvals: [...]` in `config.yaml` with the per-size form,
-and add the `delivery:` section (copy both from `template/.sdlc/config.yaml`).
-Add `board/roadmap.md` from the template.
+Run `bin/sdlc-upgrade <project>`. It merges the new `human_approvals`,
+`delivery` and `docs` sections into `config.yaml`, adds `board/roadmap.md`,
+and leaves these manual steps in the project's `inbox/` for the
+Orchestrator to do as a CHORE item:
+1. If `config.yaml` still has `human_approvals: [...]` as a flat list,
+   replace it with the per-size form.
+2. Move durable knowledge out of `.sdlc/` into the project tree: content
+   of `knowledge/context.md` → `README.md` / `docs/architecture.md`;
+   `knowledge/glossary.md` → `docs/glossary.md`; `knowledge/decisions/*` →
+   `docs/adr/`. The latest `architecture.md`, `api-contract.*`,
+   `data-req.md`, `ux-flows.md`, `screens/` and `threat-model.md` under
+   `items/` or `archive/` → the matching `docs/` paths. Leave the old item
+   files in place as history.
+3. Create any `docs/` files that are still missing (one-line stubs).
 
 ## 1.3 — 2026-10-02
 

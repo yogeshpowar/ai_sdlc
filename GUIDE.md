@@ -46,8 +46,20 @@ git init
 git add -A && git commit -m "sdlc: initialise protocol"
 ```
 
-This gives you `.sdlc/`, the agents' workspace. Your product code will live
-everywhere else in the repo, and the agents never mix the two (§6.1).
+This gives you `.sdlc/`, the agents' workspace. Everything else in the
+repo is **the project**: code, plus its living documentation in `README.md`,
+`CONTRIBUTING.md` and `docs/` (architecture, API contract, data model, ADRs,
+UX, security, runbook). The agents keep those docs up to date for every
+future developer, and never hide them in `.sdlc/` (§6.1). The first item
+(the walking skeleton) creates that `docs/` skeleton.
+
+| Where | What | For whom |
+|---|---|---|
+| project tree (`src/`, `docs/`, `README.md`, …) | the product and how it works **now** | everyone, forever |
+| `.sdlc/` | how it was built: backlog, specs, reviews, QA, traces, approvals | the agents and you, for audit and debugging |
+
+The test: delete `.sdlc/`, and a new developer can still understand, build,
+run and change the product.
 
 To pin a specific protocol version instead of the latest:
 `git -C ~/working/ai_sdlc checkout v1.2` before running `sdlc-init`.
@@ -119,8 +131,9 @@ Delete the files of disabled agents if you like. To add a role, copy
 `_template.md`. Leave `_common.md` alone: it holds the shared rules
 (tracing, tokens, permissions).
 
-Optionally fill in `.sdlc/knowledge/context.md` (architecture, conventions).
-If you leave it, the agents fill it in as they go.
+Check the `docs:` paths in `config.yaml` (where architecture, the API
+contract, ADRs and so on live in *your* repo). If you have existing docs,
+point the paths at them, and the agents will keep them up to date.
 
 Commit:
 
@@ -310,16 +323,40 @@ Questions show up in `outbox/` (or in the runner's chat). Answer with an
 
 ## 9. Upgrading a project to a newer protocol
 
+You can upgrade while the project is in active development. **The upgrade
+never touches your code, your `docs/`, or the agents' records** (items,
+traces, approvals, inbox/outbox, board, lessons). See PROTO.md §6.12.
+
 ```sh
-git -C ~/working/ai_sdlc log --oneline --decorate   # see what's new (CHANGELOG.md)
-cp ~/working/ai_sdlc/PROTO.md ~/working/ai_sdlc/GUIDE.md .sdlc/
-cp ~/working/ai_sdlc/template/.sdlc/bin/* .sdlc/bin/
-cat ~/working/ai_sdlc/VERSION > .sdlc/PROTOCOL_VERSION
-git add -A && git commit -m "sdlc: upgrade protocol to $(cat .sdlc/PROTOCOL_VERSION)"
+git -C ~/working/ai_sdlc pull                     # get the new version (read CHANGELOG.md)
+cd ~/working/my-app
+# 1. stop the Orchestrator and wait for running agents to finish (sdlc-watch shows "nobody is working")
+# 2. commit or stash anything uncommitted
+~/working/ai_sdlc/bin/sdlc-upgrade . --dry-run    # see exactly what will change
+~/working/ai_sdlc/bin/sdlc-upgrade . --commit     # do it
 ```
 
-Read the CHANGELOG entry first. A new version may add fields to
-`config.yaml` or `_common.md` that you should copy over as well.
+What you'll see in the plan:
+- `update`: protocol files you never edited, replaced with the new version.
+- `merge`: files you customised (usually `config.yaml`, `agents/*.md`).
+  Your edits are kept and the new changes are merged in.
+- `CONFLICT`: your edit and the new version touch the same lines. **Your
+  file is left exactly as it was**, and `<file>.sdlc-new` (the new version)
+  and `<file>.sdlc-merge` (with conflict markers) appear next to it. Edit
+  your file, delete the two copies, and commit. `--commit` waits until
+  you've done this.
+- `create`: files new in this version (e.g. `board/roadmap.md`).
+- `skip`: an agent you deleted stays deleted.
+- `kept`: a file the new template no longer has. It stays put, and a
+  migration step says where its content should go.
+
+If the new version needs real migration work (e.g. 1.4 moves architecture
+notes from `.sdlc/` into `docs/`), the tool leaves a request in
+`.sdlc/inbox/`. The next time you start the Orchestrator, it turns that into
+a `CHORE` item and does the work through the normal flow: branch, review,
+commits. Every upgrade is recorded in `.sdlc/UPGRADES.md`.
+
+Changed your mind before committing? `git checkout -- .sdlc .gitignore && git clean -fd .sdlc`.
 
 ---
 
@@ -332,8 +369,10 @@ Read the CHANGELOG entry first. A new version may add fields to
 | See what's happening | `.sdlc/bin/sdlc-watch`, or read `.sdlc/TODO.md` |
 | Decide what comes next | Reply to the release review in `.sdlc/outbox/` with an `answer` file in `.sdlc/inbox/` |
 | See where the product is going | `.sdlc/board/roadmap.md` |
+| Understand how the system works | `README.md` and `docs/`, the same docs the agents read |
 | Approve or reject | Same-named `approval` file in `.sdlc/approvals/` |
 | Request a feature or report a bug | A file in `.sdlc/inbox/` |
 | See an item's whole story | `.sdlc/items/<ID>/` (`item.md`, `log.md`, `messages/`) |
 | See what it cost | `item.md` → Tokens; the header of `TODO.md` |
 | See what we've learned | `.sdlc/knowledge/lessons.md` |
+| Upgrade the protocol | stop agents, commit, then `ai_sdlc/bin/sdlc-upgrade . --dry-run`, then `--commit` |
