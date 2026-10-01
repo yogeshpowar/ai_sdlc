@@ -1,0 +1,13 @@
+{
+  "protocol_version": "{{VERSION}}",
+  "updated": "{{DATE}}T00:00:00Z",
+  "next_item_number": 1,
+  "current_item": null,
+  "environments": {
+    "uat":   { "version": null },
+    "stage": { "version": null },
+    "prod":  { "version": null }
+  },
+  "tokens": { "total": 0 },
+  "items": {}
+}

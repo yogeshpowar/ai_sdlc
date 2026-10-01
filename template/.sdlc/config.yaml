@@ -1,0 +1,62 @@
+# Project config for the SDLC protocol (PROTO.md §9). Humans edit this file.
+project: {{PROJECT}}
+description: <one line: what this product is>
+
+stack:
+  backend: <lang/framework>
+  web: <framework | none>
+  app: <none | ios | android | rn | flutter>
+  db: <engine | none>
+
+agents:
+  # Turn agents on/off for this project. Small projects can merge roles (§9).
+  enabled:
+    - orchestrator
+    - reviewer
+    - security
+    - bd
+    - triage
+    - prd
+    - data-req
+    - data-flow
+    - ux
+    - ui
+    - schema
+    - backend
+    - fe-web
+    - docs
+    - qa
+    - devops
+    - release
+    - monitor
+  disabled:
+    - fe-app
+
+environments: [dev, uat, stage, prod]
+environment_mapping:            # how "deploy" is realised in this project
+  dev: <feature branch | preview url>
+  uat: <k8s namespace | git branch | url>
+  stage: <...>
+  prod: <...>
+
+gates:
+  build: <command>
+  lint: <command>
+  test: <command>
+  smoke: <command or manual steps>
+  coverage_min: 80
+  retry_budget: 3
+  monitor_window_min: 30
+
+human_approvals: [prd, prod_deploy, destructive_migration]
+compliance: [none]              # none | pci-dss | gdpr | rbi | hipaa | ...
+
+tracing:                        # §6.9
+  run_timeout_min: 60
+  detail_events: true
+  transcripts: true
+
+tokens:                         # §6.10, always recorded; these are the budgets
+  per_run_max: 200000
+  per_item_max: 1500000
+  warn_at_pct: 80

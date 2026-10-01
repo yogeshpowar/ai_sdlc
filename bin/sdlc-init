@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Set up the SDLC protocol in a project: creates <project>/.sdlc/ from the
+# template, pins a copy of PROTO.md, and adds the gitignore entries.
+#
+# Usage: sdlc-init <project-dir> [project-name]
+set -euo pipefail
+
+usage() { echo "usage: $(basename "$0") <project-dir> [project-name]" >&2; exit 2; }
+[[ $# -ge 1 && $# -le 2 ]] || usage
+
+SDLC_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+target="$1"
+mkdir -p "$target"
+target="$(cd "$target" && pwd)"
+name="${2:-$(basename "$target")}"
+version="$(cat "$SDLC_HOME/VERSION")"
+today="$(date -u +%F)"
+
+if [[ -e "$target/.sdlc" ]]; then
+  echo "error: $target/.sdlc already exists; refusing to overwrite" >&2
+  exit 1
+fi
+
+cp -R "$SDLC_HOME/template/.sdlc" "$target/.sdlc"
+cp "$SDLC_HOME/PROTO.md" "$target/.sdlc/PROTO.md"
+echo "$version" > "$target/.sdlc/PROTOCOL_VERSION"
+
+# Fill in placeholders in every text file of the new .sdlc/.
+find "$target/.sdlc" -type f \( -name '*.md' -o -name '*.yaml' -o -name '*.json' \) \
+  ! -name PROTO.md -print0 |
+  while IFS= read -r -d '' f; do
+    sed -i.bak -e "s|{{PROJECT}}|$name|g" -e "s|{{DATE}}|$today|g" \
+      -e "s|{{VERSION}}|$version|g" "$f" && rm -f "$f.bak"
+  done
+
+gi="$target/.gitignore"
+touch "$gi"
+for line in ".sdlc/tmp/" ".sdlc/trace/transcripts/"; do
+  grep -qxF "$line" "$gi" || echo "$line" >> "$gi"
+done
+
+cat <<MSG
+Initialised SDLC protocol v$version in $target/.sdlc for project "$name".
+
+Next steps:
+  1. Write the brief:          $target/.sdlc/knowledge/brief.md
+  2. Fill in the config:       $target/.sdlc/config.yaml
+  3. Define enabled agents:    $target/.sdlc/agents/<agent>.md  (start from _template.md)
+  4. Start the Orchestrator; it builds the backlog from the brief.
+MSG
