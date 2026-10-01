@@ -33,6 +33,8 @@ find "$target/.sdlc" -type f \( -name '*.md' -o -name '*.yaml' -o -name '*.json'
       -e "s|{{VERSION}}|$version|g" "$f" && rm -f "$f.bak"
   done
 
+"$target/.sdlc/bin/sdlc-status" --write   # first TODO.md
+
 gi="$target/.gitignore"
 touch "$gi"
 for line in ".sdlc/tmp/" ".sdlc/trace/transcripts/"; do
@@ -47,4 +49,5 @@ Next steps:
   2. Fill in the config:       $target/.sdlc/config.yaml
   3. Review the agents:        $target/.sdlc/agents/  (generic definitions; adjust tools/paths, delete unused ones)
   4. Start the Orchestrator; it builds the backlog from the brief.
+  5. Watch it work:            $target/.sdlc/bin/sdlc-watch   (status file: .sdlc/TODO.md)
 MSG

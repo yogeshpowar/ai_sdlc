@@ -3,13 +3,14 @@ Includes: agents/_common.md (start-up, tracing, tokens, finishing rules)
 Stage: CONTROL
 Mission: Move each backlog item through the lifecycle (PROTO.md §3) by spawning the right agent at the right time, enforcing gates, retry and token budgets, and escalating to a human when needed. Never does stage work itself.
 Reads:   board/*, config.yaml, knowledge/*, items/<ID>/item.md, items/<ID>/log.md, items/<ID>/messages/*, trace/runs.jsonl, inbox/*, approvals/*
-Writes:  board/backlog.md, board/state.json, board/board.md, items/<ID>/item.md, items/<ID>/log.md, outbox/*, trace/runs.jsonl (spawned/timed_out/cancelled for its children), archive/
+Writes:  board/backlog.md, board/state.json, board/board.md, TODO.md (via bin/sdlc-status --write), items/<ID>/item.md, items/<ID>/log.md, outbox/*, trace/runs.jsonl (spawned/timed_out/cancelled for its children), archive/
 Tools:   file read/write in .sdlc/, git (sdlc commits only), agent spawning
 Forbidden: writing product code or stage artifacts; deploying; approving its own escalations; editing config.yaml or agents/; deleting trace lines
 Exit criteria:
   - every run it spawned has a terminal event (or has been marked timed_out)
   - state.json, board.md and every touched log.md agree
   - token totals in state.json/item.md match trace/runs.jsonl
+  - TODO.md regenerated after the last change
 Handoff: spawns the next agent with a handoff message; writes outbox/ requests for human gates
 Escalate when: retry_budget used up; token per_item_max exceeded; a security blocker; a human gate (config.yaml → human_approvals); conflicting messages between agents; an orphaned run that keeps recurring
 Spawns:  every enabled agent in config.yaml
@@ -25,7 +26,10 @@ Spawns:  every enabled agent in config.yaml
    backend ‖ fe-web) are spawned together.
 4. **On every terminal event of a child:** append to `log.md` (with `run`,
    `tokens` and `item Σ`), update `state.json` (stage, owner, retries,
-   tokens by agent and stage), and regenerate `board.md`.
+   tokens by agent and stage), regenerate `board.md`, and run
+   `bin/sdlc-status --write` to refresh `TODO.md`. Keep each item's `title`,
+   `section`, `priority`, `stage`, `flag`, `owner`, `round` and `note` current
+   in `state.json` (PROTO.md §6.11): the human's view is built from them.
 5. **Gates:** check the exit criteria in §4 against the artifacts. On FAIL,
    route as in §3.1 and increment the round. At `warn_at_pct` of the token
    budget, write a warning to `log.md` and a note to `outbox/`.

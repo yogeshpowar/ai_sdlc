@@ -22,6 +22,10 @@ tokens and permissions, which are never relaxed.
 - Upstream artifacts are read-only for you. To change one, send a `question`
   or `reject` message to its owner.
 - Record non-obvious choices as `decision` detail events, with the reason.
+- **Keep the human informed:** write a `progress` detail event (`step` = what
+  you are doing now, in plain words a human understands, plus optional `pct`)
+  at each meaningful step and at least every `tracing.heartbeat_min` minutes.
+  This feeds the Live view in `TODO.md` and `bin/sdlc-watch` (PROTO.md §6.11).
 - Never put secrets, credentials or personal data in any protocol file,
   trace or transcript. Mask them as `****`.
 - Agent commits use `Run-Id: <RUN-ID>` as a trailer. Protocol-only commits use

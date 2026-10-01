@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Live view of the SDLC: which agents are working, recent events, and the
+# TODO.MD board. Read-only: it renders from state.json and trace/, never writes.
+#
+# Usage: .sdlc/bin/sdlc-watch [interval-seconds]   (default 2; Ctrl-C to stop)
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+interval="${1:-2}"
+trap 'tput cnorm 2>/dev/null || true; echo; exit 0' INT TERM
+tput civis 2>/dev/null || true
+while true; do
+  out="$(SDLC_COLOUR=1 "$here/sdlc-status" 2>&1 || true)"
+  printf '\033[H\033[2J%s\n\n(refreshing every %ss · Ctrl-C to stop)\n' "$out" "$interval"
+  sleep "$interval"
+done

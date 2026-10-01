@@ -193,6 +193,10 @@ Files in a repo fall into exactly one of two kinds:
 ```
 .sdlc/
   PROTO.md                          # this protocol (lives here, not at the repo root)
+  TODO.md                           # human status report, TODO.MD format, generated (6.11)
+  bin/
+    sdlc-status                     # renders TODO.md / the live view from state.json + trace/
+    sdlc-watch                      # live terminal view for humans (read-only)
   README.md                         # generated: "this dir is managed by PROTO.md, don't hand-edit"
   PROTOCOL_VERSION                  # e.g. 1.0, so agents can detect an out-of-date layout
   config.yaml                       # project config (section 9)
@@ -346,6 +350,8 @@ from a `prd.md` whose status isn't `approved`.
 | `trace/runs.jsonl` | the spawner (normally Orchestrator), append only | read |
 | `trace/runs/<date>/<RUN-ID>.jsonl` | that run only, append only | read |
 | `trace/transcripts/` | the agent harness | humans read when debugging |
+| `TODO.md` | Orchestrator, only by running `bin/sdlc-status --write` | humans read / watch |
+| `bin/*` | humans (copied from ai_sdlc) | everyone runs |
 | `tmp/` | anyone | not trusted, not read across agents |
 
 Upstream artifacts are read-only for downstream agents. To change one, send a
@@ -445,7 +451,9 @@ Example lines:
 
 #### Detail events (`trace/runs/<date>/<RUN-ID>.jsonl`)
 
-`read` (path@version), `wrote` (path, protocol or project), `tool_call`
+`progress` (heartbeat: `step` = what the agent is doing now in plain words,
+optional `pct`; required at every meaningful step and at least every
+`tracing.heartbeat_min`), `read` (path@version), `wrote` (path, protocol or project), `tool_call`
 (tool, short args, exit code, duration), `gate_check` (criterion, pass/fail),
 `message_sent`, `question_asked`, `decision` (a non-obvious choice and why),
 `error`. Keep each line short and put large outputs in the transcript.
@@ -538,6 +546,77 @@ and the project.
 - `warn_at_pct`: the Orchestrator writes a `warning` line in `log.md` and an
   `outbox/` note when an item passes this percentage of its budget.
 
+### 6.11 Human status view: `TODO.md` and `sdlc-watch`
+
+Agents can work for a long time. The human watching should always be able
+to see **who is working, on what, how far along it is, and what it has cost**,
+without reading JSON.
+
+**`.sdlc/TODO.md`** is the human status report, in
+[TODO.MD](https://github.com/doublefreein/TODO.MD) format. It is
+**generated, never hand-edited**: `bin/sdlc-status --write` builds it from
+`board/state.json` and `trace/`. The Orchestrator regenerates it after every
+lifecycle event it writes and every state change. The write is atomic, so a
+reader never sees half a file. Sections:
+
+1. **Header:** number of agents working, the current item and stage, project
+   tokens, environment versions, last update time.
+2. **Live:** one line per running agent: agent, item, stage and round, time
+   elapsed, `pct`, and its latest `progress` step. A run that has gone quiet
+   for more than 5 minutes is flagged ⚠️.
+3. **Recent:** the last 10 spawn and terminal events (▶️ ✅ ❌ ⌛ 🙋 ⏹️), with
+   tokens and reasons.
+4. **Board:** one `## <section>` per backlog section. Each item is a TODO.MD
+   task line, and its agent runs are subtasks under it:
+
+```
+* [u] (p0) 2026-10-02 +shop Cart and checkout @qa id:FEAT-0002-cart-checkout stage:uat round:1 tok:250.1k
+    * [X] 2026-10-02 2026-10-02 +shop design r1: Write PRD @prd run:RUN-…-prd-0001 took:12m00s tok:61.4k
+    * [X] 2026-10-02 2026-10-02 +shop dev r1: Implement cart API @backend run:RUN-…-0002 took:37m00s tok:142.8k
+    * [o] 2026-10-02 +shop qa@uat r1: Run acceptance tests on uat @qa run:RUN-…-qa-0003 took:3m00s
+```
+
+TODO.MD fields as used here: status marker; `(p0…p4)` = item priority;
+creation date, then completion date; `+<project>`; title; `@<agent>` = the
+current owner or the run's agent; `k:v` = `id`, `stage`, `round`, `tok`,
+`run`, `took`, `release`, `retry_of`.
+
+| Item stage | Marker | | Run end | Marker |
+|---|---|---|---|---|
+| BACKLOG | `[ ]` | | running | `[o]` |
+| REQ | `[.]` | | completed | `[X]` |
+| DESIGN, DEV | `[o]` | | failed, timed_out, cancelled | `[f]` |
+| REVIEW, QA | `[O]` | | escalated | `[B]` |
+| READY (passed QA@dev) | `[x]` | | | |
+| UAT / STAGE / PROD | `[u]` / `[s]` / `[p]` | | | |
+| RELEASED | `[X]` | | | |
+| blocked (waiting on a human) | `[B]` | | | |
+| failed gate in UAT / STAGE / PROD / elsewhere | `[uf]` / `[sf]` / `[pf]` / `[f]` | | | |
+
+**`bin/sdlc-watch [seconds]`** is the live show: it re-renders the same
+report every 2 s (default) straight from `state.json` and `trace/`, so it
+updates between Orchestrator writes too. It is read-only and needs only
+bash + python3. Run it in a spare terminal, or use
+`watch -n 2 cat .sdlc/TODO.md` for the last snapshot.
+
+**What feeds it**, and is therefore required:
+- `progress` events from every running agent (6.9), written at least every
+  `tracing.heartbeat_min`. Without them the Live line can only show the task.
+- Item fields in `board/state.json`, maintained by the Orchestrator:
+
+```json
+"items": {
+  "FEAT-0002-cart-checkout": {
+    "title": "Cart and checkout", "section": "Storefront", "priority": "p0",
+    "created": "2026-10-02", "released": null,
+    "stage": "UAT", "flag": null,            // null | blocked | failed
+    "owner": "qa", "round": 1, "release": null,
+    "note": null,                            // one line shown under the item (e.g. what it's blocked on)
+    "tokens": { "total": 250100, "by_agent": {}, "by_stage": {} }
+  }
+}
+```
+
 ---
 
 ## 7. Environments and promotion
@@ -588,6 +667,7 @@ human_approvals: [prd, prod_deploy, destructive_migration]
 compliance: [none | pci-dss | gdpr | rbi | hipaa]
 tracing:
   run_timeout_min: 60           # spawner marks a silent run timed_out after this
+  heartbeat_min: 2              # max gap between an agent's `progress` events
   detail_events: true           # write trace/runs/<date>/<RUN-ID>.jsonl
   transcripts: true             # keep raw transcripts (gitignored)
 tokens:                         # 6.10 (always recorded; these are the budgets)

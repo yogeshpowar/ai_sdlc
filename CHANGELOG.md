@@ -1,6 +1,21 @@
 # Changelog: SDLC protocol
 
-## Unreleased (template only, protocol unchanged)
+## 1.2 — 2026-10-02
+
+### Added
+- **Human status view (§6.11):** `.sdlc/TODO.md`, a generated status report
+  in [TODO.MD](https://github.com/doublefreein/TODO.MD) format (header,
+  Live, Recent, and a board with each item's runs as subtasks), plus
+  `bin/sdlc-watch`, a read-only live terminal view refreshed every 2 s.
+- `bin/sdlc-status`: renders the report from `state.json` + `trace/`;
+  `--write` regenerates `TODO.md` atomically.
+- `progress` heartbeat detail event (`step`, `pct`), required at every
+  meaningful step and at least every `tracing.heartbeat_min` minutes.
+- The item fields in `state.json` that the view depends on are now documented.
+- Orchestrator regenerates `TODO.md` after every change; `sdlc-init` creates
+  the first one.
+
+## 1.1-template — 2026-10-02 (template only, protocol unchanged)
 
 ### Added
 - `template/.sdlc/agents/`: generic definitions for all 19 roster agents

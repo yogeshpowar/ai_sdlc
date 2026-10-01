@@ -12,7 +12,7 @@ The protocol itself is [`PROTO.md`](PROTO.md). This repo is its canonical home.
 | Path | What it is |
 |---|---|
 | `PROTO.md` | The protocol: roles, lifecycle, gates, file layout, run tracing, token accounting |
-| `VERSION` | Protocol version (currently 1.1) |
+| `VERSION` | Protocol version (currently 1.2) |
 | `CHANGELOG.md` | What changed between protocol versions |
 | `template/.sdlc/` | Blank `.sdlc/` skeleton that gets copied into each new project |
 | `template/.sdlc/agents/` | Generic definitions for every roster agent, plus `_common.md` (rules all agents share) |
@@ -32,6 +32,7 @@ This creates `<new-project>/.sdlc/` with:
   context, lessons, glossary), `agents/` (19 generic agent definitions plus
   `_common.md` and `_template.md`), empty `items/`,
   `inbox/`, `outbox/`, `approvals/`, `archive/` and `trace/`
+- `bin/sdlc-status` and `bin/sdlc-watch` (the human status view) and a first `TODO.md`
 - the project name and date filled in, and `.sdlc/tmp/` and
   `.sdlc/trace/transcripts/` added to the project's `.gitignore`
 
@@ -45,6 +46,10 @@ Then:
    from `_template.md`.
 4. Start the Orchestrator. It turns the brief into the backlog and runs items
    through the lifecycle.
+5. Watch it work: `.sdlc/bin/sdlc-watch` in a spare terminal shows who is
+   working, on what, how far along and at what token cost, refreshed every 2 s.
+   `.sdlc/TODO.md` has the same report as a file
+   ([TODO.MD](https://github.com/doublefreein/TODO.MD) format).
 
 ## Changing the protocol
 

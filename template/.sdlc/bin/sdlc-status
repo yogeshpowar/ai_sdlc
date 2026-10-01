@@ -1,0 +1,271 @@
+#!/usr/bin/env python3
+"""Render the human status report for an .sdlc/ project (PROTO.md §6.11).
+
+Reads board/state.json and trace/ and prints a TODO.MD-format report:
+a live view of running agents, a feed of recent events, and every item
+with its runs as subtasks.
+
+  sdlc-status            print to stdout (with colour if a terminal)
+  sdlc-status --write    regenerate .sdlc/TODO.md (no colour)
+  sdlc-status --dir D    use .sdlc directory D (default: this script's parent)
+"""
+import argparse, glob, json, os, sys
+from datetime import datetime, timezone
+
+TERMINAL = {"completed", "failed", "timed_out", "escalated", "cancelled"}
+
+# Item stage -> TODO.MD status marker (https://github.com/doublefreein/TODO.MD)
+STAGE_MARK = {"BACKLOG": "[ ]", "REQ": "[.]", "DESIGN": "[o]", "DEV": "[o]",
+              "REVIEW": "[O]", "QA": "[O]", "READY": "[x]", "UAT": "[u]",
+              "STAGE": "[s]", "PROD": "[p]", "RELEASED": "[X]", "CANCELLED": "[X]"}
+FAIL_MARK = {"UAT": "[uf]", "STAGE": "[sf]", "PROD": "[pf]"}
+RUN_MARK = {"completed": "[X]", "failed": "[f]", "timed_out": "[f]",
+            "cancelled": "[f]", "escalated": "[B]"}
+COLOUR = {"[X]": "32", "[p]": "32", "[x]": "32", "[o]": "33", "[O]": "33",
+          "[.]": "33", "[u]": "36", "[s]": "36", "[B]": "35", "[f]": "31",
+          "[uf]": "31", "[sf]": "31", "[pf]": "31"}
+
+
+def now():
+    return datetime.now(timezone.utc)
+
+
+def parse_ts(s):
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except (AttributeError, ValueError):
+        return None
+
+
+def human_dur(seconds):
+    seconds = int(max(seconds, 0))
+    if seconds < 60:
+        return f"{seconds}s"
+    m, s = divmod(seconds, 60)
+    if m < 60:
+        return f"{m}m{s:02d}s"
+    h, m = divmod(m, 60)
+    return f"{h}h{m:02d}m"
+
+
+def human_tok(n):
+    if not n:
+        return "0"
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M"
+    if n >= 1000:
+        return f"{n / 1000:.1f}k"
+    return str(n)
+
+
+def read_jsonl(path):
+    out = []
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        out.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        pass  # a half-written line from a live run; skip it
+    except FileNotFoundError:
+        pass
+    return out
+
+
+def load(sdlc):
+    try:
+        with open(os.path.join(sdlc, "board", "state.json")) as f:
+            state = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        state = {"items": {}}
+    try:
+        with open(os.path.join(sdlc, "config.yaml")) as f:
+            project = next((l.split(":", 1)[1].strip() for l in f
+                            if l.startswith("project:")), "project")
+    except FileNotFoundError:
+        project = "project"
+    events = read_jsonl(os.path.join(sdlc, "trace", "runs.jsonl"))
+    runs = {}
+    for e in events:
+        r = runs.setdefault(e.get("run_id"), {"run_id": e.get("run_id")})
+        ev = e.get("event")
+        if ev == "spawned":
+            r.update({k: e.get(k) for k in ("agent", "item", "stage", "round",
+                                             "task", "parent_run", "retry_of")})
+            r["spawned"] = e.get("ts")
+        elif ev == "started":
+            r["started"] = e.get("ts")
+        elif ev in TERMINAL:
+            r["end"] = ev
+            r["ended"] = e.get("ts")
+            r["reason"] = e.get("reason")
+            r["tokens"] = (e.get("tokens") or {}).get("total")
+    # latest progress heartbeat for each run still going
+    for path in glob.glob(os.path.join(sdlc, "trace", "runs", "*", "*.jsonl")):
+        rid = os.path.basename(path)[:-6]
+        if rid in runs and "end" not in runs[rid]:
+            prog = [e for e in read_jsonl(path) if e.get("event") == "progress"]
+            if prog:
+                runs[rid]["progress"] = prog[-1]
+    return project, state, events, runs
+
+
+def mark(m, colour):
+    return f"\033[{COLOUR[m]}m{m}\033[0m" if colour and m in COLOUR else m
+
+
+def item_mark(it):
+    stage = (it.get("stage") or "BACKLOG").upper()
+    flag = it.get("flag")
+    if flag == "blocked":
+        return "[B]"
+    if flag == "failed":
+        return FAIL_MARK.get(stage, "[f]")
+    return STAGE_MARK.get(stage, "[ ]")
+
+
+def render(project, state, events, runs, colour=False):
+    t = now()
+    items = state.get("items", {})
+    live = [r for r in runs.values() if r.get("spawned") and "end" not in r]
+    # Item tokens: the larger of what state.json says and what its traced runs add up to.
+    run_tok = {}
+    for r in runs.values():
+        run_tok[r.get("item")] = run_tok.get(r.get("item"), 0) + (r.get("tokens") or 0)
+    item_tok = {i: max((it.get("tokens") or {}).get("total") or 0, run_tok.get(i, 0))
+                for i, it in items.items()}
+    total_tok = sum(item_tok.values()) + sum(v for k, v in run_tok.items() if k not in items)
+    current = state.get("current_item")
+    cur_stage = items.get(current, {}).get("stage") if current else None
+
+    L = [f"<!-- Generated by .sdlc/bin/sdlc-status from board/state.json and trace/. Do not hand-edit. -->",
+         f"# {project}: SDLC status", ""]
+    dot = "🟢" if live else "⚪"
+    head = f"> {dot} **{len(live)} agent{'s' if len(live) != 1 else ''} working**"
+    if current:
+        head += f" · now on **{current}** ({cur_stage})"
+    head += f" · project tokens **{human_tok(total_tok)}** · updated {t:%Y-%m-%d %H:%M:%S}Z"
+    L += [head, ""]
+
+    envs = state.get("environments", {})
+    if envs:
+        L.append("> " + " · ".join(f"{k}: `{(v or {}).get('version') or 'none'}`"
+                                   for k, v in envs.items()))
+        L.append("")
+
+    L.append("## Live")
+    if not live:
+        L.append("- nobody is working right now")
+    for r in sorted(live, key=lambda r: r.get("spawned") or ""):
+        start = parse_ts(r.get("started") or r.get("spawned"))
+        el = human_dur((t - start).total_seconds()) if start else "?"
+        p = r.get("progress") or {}
+        doing = p.get("step") or r.get("task") or "starting up"
+        pct = f" {p['pct']}%" if isinstance(p.get("pct"), (int, float)) else ""
+        quiet = ""
+        pts = parse_ts(p.get("ts")) if p else None
+        if pts and (t - pts).total_seconds() > 300:
+            quiet = f" ⚠️ quiet for {human_dur((t - pts).total_seconds())}"
+        L.append(f"- ⏳ **{r.get('agent')}** on {r.get('item')} · {r.get('stage')} "
+                 f"r{r.get('round') or 1} · {el}{pct} · {doing}{quiet} "
+                 f"`{r.get('run_id')}`")
+    L.append("")
+
+    L.append("## Recent")
+    feed = [e for e in events if e.get("event") in TERMINAL | {"spawned"}][-10:]
+    if not feed:
+        L.append("- no activity yet")
+    icon = {"spawned": "▶️", "completed": "✅", "failed": "❌", "timed_out": "⌛",
+            "escalated": "🙋", "cancelled": "⏹️"}
+    for e in reversed(feed):
+        r = runs.get(e.get("run_id"), {})
+        ts = parse_ts(e.get("ts"))
+        when = f"{ts:%H:%M:%S}" if ts else "??:??:??"
+        what = e.get("event")
+        extra = ""
+        if what == "spawned":
+            extra = f" {e.get('task') or ''}"
+        else:
+            tok = (e.get("tokens") or {}).get("total")
+            extra = (f" · {human_tok(tok)} tok" if tok else "") + \
+                    (f" · {e.get('reason')}" if e.get("reason") else "")
+        L.append(f"- {when} {icon.get(what, '•')} {r.get('agent') or e.get('agent')} "
+                 f"{what} · {r.get('item') or e.get('item')} · {r.get('stage') or ''}{extra}")
+    L.append("")
+
+    # Items grouped by section, as TODO.MD task lines with runs as subtasks.
+    def sort_key(kv):
+        stage = (kv[1].get("stage") or "BACKLOG").upper()
+        rank = 2 if stage in ("RELEASED", "CANCELLED") else 1 if stage == "BACKLOG" else 0
+        return (rank, kv[0])
+    sections = {}
+    for iid, it in sorted(items.items(), key=sort_key):
+        sections.setdefault(it.get("section") or "Backlog", []).append((iid, it))
+    for sec, rows in sections.items():
+        L.append(f"## {sec}")
+        L.append("")
+        for iid, it in rows:
+            m = mark(item_mark(it), colour)
+            pr = f"({it.get('priority') or 'p2'})"
+            dates = " ".join(d for d in (it.get("created"), it.get("released")) if d)
+            title = it.get("title") or iid
+            owner = f" @{it['owner']}" if it.get("owner") else ""
+            tok = item_tok.get(iid)
+            meta = [f"id:{iid}", f"stage:{(it.get('stage') or 'BACKLOG').lower()}"]
+            if it.get("round"):
+                meta.append(f"round:{it['round']}")
+            if tok:
+                meta.append(f"tok:{human_tok(tok)}")
+            if it.get("release"):
+                meta.append(f"release:{it['release']}")
+            L.append(f"* {m} {pr} {dates + ' ' if dates else ''}+{project} {title}{owner} {' '.join(meta)}")
+            if it.get("note"):
+                L.append(f"    - {it['note']}")
+            item_runs = sorted((r for r in runs.values() if r.get("item") == iid),
+                               key=lambda r: r.get("spawned") or "")
+            for r in item_runs:
+                rm = mark(RUN_MARK.get(r.get("end"), "[o]"), colour)
+                d1 = (r.get("spawned") or "")[:10]
+                d2 = (r.get("ended") or "")[:10]
+                s, e = parse_ts(r.get("started") or r.get("spawned")), parse_ts(r.get("ended"))
+                took = human_dur(((e or t) - s).total_seconds()) if s else "?"
+                rmeta = [f"run:{r['run_id']}", f"took:{took}"]
+                if r.get("tokens"):
+                    rmeta.append(f"tok:{human_tok(r['tokens'])}")
+                if r.get("retry_of"):
+                    rmeta.append(f"retry_of:{r['retry_of']}")
+                L.append(f"    * {rm} {d1}{' ' + d2 if d2 else ''} +{project} "
+                         f"{r.get('stage')} r{r.get('round') or 1}: {r.get('task') or ''} "
+                         f"@{r.get('agent')} {' '.join(rmeta)}")
+                if r.get("reason"):
+                    L.append(f"        - {r['reason']}")
+        L.append("")
+
+    L += ["---",
+          "Legend: `[ ]` todo · `[.]` req · `[o]` design/dev · `[O]` review/qa · `[x]` ready · "
+          "`[u]` uat · `[s]` stage · `[p]` prod · `[X]` done · `[B]` blocked · "
+          "`[f]`/`[uf]`/`[sf]`/`[pf]` failed (TODO.MD format)", ""]
+    return "\n".join(L)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--write", action="store_true", help="regenerate .sdlc/TODO.md")
+    ap.add_argument("--dir", help=".sdlc directory (default: this script's parent)")
+    a = ap.parse_args()
+    sdlc = os.path.abspath(a.dir or os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+    data = load(sdlc)
+    if a.write:
+        path = os.path.join(sdlc, "TODO.md")
+        tmp = path + ".tmp"
+        with open(tmp, "w") as f:
+            f.write(render(*data, colour=False))
+        os.replace(tmp, path)  # atomic, so watchers never see a half-written file
+    else:
+        sys.stdout.write(render(*data, colour=sys.stdout.isatty() or os.environ.get("SDLC_COLOUR") == "1"))
+
+
+if __name__ == "__main__":
+    main()

@@ -7,6 +7,7 @@ and deploys must ignore it.
 
 - The protocol (pinned copy): [`PROTO.md`](PROTO.md), version in [`PROTOCOL_VERSION`](PROTOCOL_VERSION)
 - Project config: [`config.yaml`](config.yaml)
+- **Status for humans:** [`TODO.md`](TODO.md). Watch it live with `.sdlc/bin/sdlc-watch`
 - What's being worked on: [`board/board.md`](board/board.md)
 - Backlog: [`board/backlog.md`](board/backlog.md)
 - Brief, context and lessons: [`knowledge/`](knowledge/)
