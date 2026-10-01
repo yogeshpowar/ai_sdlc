@@ -37,7 +37,10 @@ This creates `<new-project>/.sdlc/` with:
 - the project name and date filled in, and `.sdlc/tmp/` and
   `.sdlc/trace/transcripts/` added to the project's `.gitignore`
 
-It refuses to run if `.sdlc/` already exists.
+It refuses to run if `.sdlc/` already exists. `sdlc-init --version` prints the protocol version.
+
+Releases are tagged `v<VERSION>` (e.g. `v1.2`). To start a project on a
+specific version, check out its tag before running `sdlc-init`.
 
 Then:
 1. Write `.sdlc/knowledge/brief.md` (what, for whom, why, constraints).

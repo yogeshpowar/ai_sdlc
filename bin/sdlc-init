@@ -5,12 +5,16 @@
 # template, pins a copy of PROTO.md, and adds the gitignore entries.
 #
 # Usage: sdlc-init <project-dir> [project-name]
+#        sdlc-init --version
 set -euo pipefail
 
-usage() { echo "usage: $(basename "$0") <project-dir> [project-name]" >&2; exit 2; }
+usage() { echo "usage: $(basename "$0") <project-dir> [project-name] | --version" >&2; exit 2; }
+SDLC_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ "${1:-}" == "--version" || "${1:-}" == "-V" ]]; then
+  echo "ai_sdlc protocol $(cat "$SDLC_HOME/VERSION")"; exit 0
+fi
 [[ $# -ge 1 && $# -le 2 ]] || usage
 
-SDLC_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 target="$1"
 mkdir -p "$target"
 target="$(cd "$target" && pwd)"

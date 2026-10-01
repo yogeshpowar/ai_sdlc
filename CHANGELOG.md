@@ -14,6 +14,11 @@
 - The item fields in `state.json` that the view depends on are now documented.
 - Orchestrator regenerates `TODO.md` after every change; `sdlc-init` creates
   the first one.
+- `sdlc-init --version`.
+- License: GPL-3.0-only (`LICENSE`), with SPDX headers in the scripts.
+
+### Changed
+- Example IDs in PROTO.md are now generic (`FEAT-0012-user-login`).
 
 ## 1.1-template — 2026-10-02 (template only, protocol unchanged)
 
