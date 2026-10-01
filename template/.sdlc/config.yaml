@@ -51,6 +51,13 @@ gates:
 human_approvals: [prd, prod_deploy, destructive_migration]
 compliance: [none]              # none | pci-dss | gdpr | rbi | hipaa | ...
 
+git:                            # §6.7 commit policy
+  main_branch: main
+  item_branch: feature/<ITEM-ID>  # fix/<ITEM-ID> for BUG, hotfix/<ITEM-ID> for HOTFIX
+  remote: null                  # e.g. origin; null = local only
+  push: on_commit               # on_commit | on_approval | never (approvals are always pushed unless never)
+  checkpoint_min: 30            # dev agents commit at least this often while working
+
 tracing:                        # §6.9
   run_timeout_min: 60
   heartbeat_min: 2              # max gap between an agent's progress events (feeds TODO.md / sdlc-watch)

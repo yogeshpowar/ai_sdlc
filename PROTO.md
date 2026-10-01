@@ -128,10 +128,10 @@ QA is **interleaved**, not a single stage at the end: every promotion is
 |---|---|
 | **REQ → DESIGN** | Problem, target user, and success metric are stated; duplicate check against backlog done |
 | **DESIGN → DEV** | PRD human-approved; every acceptance criterion testable; API contract frozen; threat model done; screens cover all states |
-| **DEV → REVIEW** | Builds; lint/vet clean; unit tests pass; coverage ≥ target; migrations have rollback; docs updated |
+| **DEV → REVIEW** | Builds; lint/vet clean; unit tests pass; coverage ≥ target; migrations have rollback; docs updated; **all work committed on the item branch (and pushed, if a remote is set)** |
 | **REVIEW → QA** | Reviewer approves against the PRD; security scan clean; `lessons.md` checklist ticked |
 | **QA@env → next env** | 100% of acceptance criteria pass; no open Sev1/Sev2; regression suite green |
-| **STAGE → PROD** | All of the above **plus** explicit human approval and a rollback plan |
+| **STAGE → PROD** | All of the above **plus** explicit human approval (committed, and pinned to the commit SHA being deployed) and a rollback plan |
 | **PROD → RELEASED** | Smoke tests pass; monitor window clean (e.g. 30 min); CHANGELOG published |
 
 ### 4.2 Definition of Done
@@ -357,27 +357,96 @@ from a `prd.md` whose status isn't `approved`.
 Upstream artifacts are read-only for downstream agents. To change one, send a
 `question` or `reject` message to the owner.
 
-### 6.7 Git policy
+### 6.7 Git and commit policy
 
+Commit early and often. Work that isn't committed doesn't exist: a crashed
+run, a closed laptop or a new session must never lose more than a few
+minutes of work. **A human approval is committed the moment it is made.**
+
+#### Where things are committed
+
+| What | Branch | Committed by |
+|---|---|---|
+| Product code, tests, migrations, docs for an item | the item branch `feature/<ITEM-ID>` (or `fix/` / `hotfix/`), never the main branch directly | the dev agent doing the work |
+| Everything under `.sdlc/` | the **main branch** only (`config.yaml` → `git.main_branch`) | the Orchestrator (the single writer, so no conflicts) |
+| Merge of an item branch | main branch, `--no-ff`, only after `review` is approved | the Orchestrator |
+| Release tag `v<X.Y.Z>` | main branch, on the deployed commit | release |
+
+- Never commit `.sdlc/` changes on an item branch. Stage agents write their
+  `.sdlc/` files in the main checkout, and the Orchestrator commits them.
 - Commit all of `.sdlc/` **except** `tmp/` and `trace/transcripts/`. Add both
   to `.gitignore`. `trace/*.jsonl` **is** committed, because it's the debugging record.
-- Agent commits carry a `Run-Id: <RUN-ID>` trailer (6.9).
-- Protocol changes go in their own commits with an `sdlc:` prefix, e.g.
-  `sdlc(FEAT-0012): qa@uat r1 FAIL`, so they don't mix with product commits.
-- When an item reaches `RELEASED` or is cancelled, the Orchestrator moves
-  `items/<ITEM-ID>/` to `archive/<YYYY>/` and keeps the board lean.
+
+#### When to commit (mandatory commit points)
+
+| # | Moment | Who | Commit |
+|---|---|---|---|
+| C1 | **A human approval or rejection lands in `approvals/`** | Orchestrator, **immediately**, before spawning anything else | the approval file, plus the resulting `state.json`, `log.md`, `TODO.md`. Subject `sdlc(<ID>): <decision> <what> by <human>`, trailers `Approved-By: human:<handle>` and `Approval: approvals/<file>` |
+| C2 | A human writes a brief, config or agent change, or an `inbox/` file | Orchestrator, on its next start (or the human, directly) | `sdlc: <what changed>`, trailer `Changed-By: human:<handle>` |
+| C3 | A dev agent reaches a **checkpoint**: an AC is implemented and its tests are green, a migration is written, or `git.checkpoint_min` minutes have passed since the last commit | the dev agent, on its item branch | `<type>(<ID>): <summary>` (`wip(<ID>): …` is allowed on the branch) |
+| C4 | **Before any handoff**: a dev agent may not hand off with uncommitted work | the dev agent | its final commit. The handoff message names the commit SHA |
+| C5 | **Every terminal event** (completed, failed, escalated, timed_out, cancelled) | Orchestrator | that run's `.sdlc/` outputs, plus `state.json`, `log.md`, `TODO.md`, `trace/`. Subject `sdlc(<ID>): <stage> r<N> <result>` |
+| C6 | Before a deploy | devops | nothing new. It **refuses a dirty tree** and deploys only a committed and (for prod) tagged commit |
+| C7 | Before stopping, pausing or escalating, or at the end of a session | every running agent, then the Orchestrator | everything in progress, as `wip(<ID>): …` on the item branch and `sdlc: checkpoint` on main, so a resume loses nothing |
+
+#### Approvals pin what was approved
+
+An approval commit (C1) records the **exact version that was approved**:
+the approval file names the artifact and its `version` (e.g. `prd.md@v3`) or
+the commit SHA (for a prod deploy). If the artifact changes afterwards, the
+approval no longer applies. The Orchestrator must ask again (new
+`approval-request`), and the gate treats the old approval as void.
+
+#### Commit messages
+
+- Every agent commit carries trailers `Run-Id: <RUN-ID>` (6.9) and
+  `Item: <ITEM-ID>`, so any line of code traces back to the run, item and
+  approval that produced it.
+- Product commits: `<type>(<ITEM-ID>): <summary>`, where `type` is one of
+  `feat` | `fix` | `test` | `docs` | `refactor` | `chore` | `wip`.
+- Protocol commits: `sdlc(<ITEM-ID>): <summary>`, or `sdlc: <summary>` when no item applies.
+- Keep product and protocol changes in **separate commits**.
+
+#### Pushing
+
+If `config.yaml` → `git.remote` is set, push according to `git.push`:
+`on_commit` (default: after every commit point), `on_approval` (C1, C4, C5
+and tags only), or `never`. **Approval commits (C1) are pushed immediately**
+under every setting except `never`, so the approval record is safe
+off-machine. A failed push is retried, then escalated. It is never ignored.
+
+#### Never
+
+Force-push or rewrite history on the main branch; amend or rebase another
+run's commits; commit secrets, credentials or `.env` files (the security
+agent's scan blocks it); commit with failing gates on the main branch; leave
+the working tree dirty at the end of a session.
+
+#### Start-up check
+
+On every start, the Orchestrator runs `git status`. If the tree is dirty
+(e.g. left over from a crashed run), it commits the leftovers as
+`wip(<ID>): recovered from <RUN-ID>` on the right branch, records a
+`decision` event, and only then continues. If it can't tell who owns the
+changes, it escalates instead of guessing.
+
+#### Archiving
+
+When an item reaches `RELEASED` or is cancelled, the Orchestrator moves
+`items/<ITEM-ID>/` to `archive/<YYYY>/` and commits the move (C5).
 
 ### 6.8 Agent start-up contract
 
 Before doing anything, an agent:
 1. Takes the `RUN-ID` its spawner gave it. If it has none, it stops: untraced runs aren't allowed.
+   A dev agent then checks out its item branch and confirms the tree is clean (6.7).
 2. Reads `.sdlc/PROTOCOL_VERSION` and stops if it doesn't support that version.
 3. Reads its own `agents/<agent>.md`, `config.yaml`, and `knowledge/lessons.md`.
 4. Reads the latest message addressed to it in `items/<ITEM-ID>/messages/`.
 5. Reads only the artifacts listed in its `Reads`, checking each one's header status.
 6. Writes the `started` event (6.9) and logs each read as a `read` detail event.
 
-Before exiting, it writes exactly one terminal event (`completed`, `failed`
+Before exiting, it commits its work (6.7, C4/C7) and writes exactly one terminal event (`completed`, `failed`
 or `escalated`). If it spawns sub-agents, it mints their run IDs and writes
 their `spawned` events itself.
 
@@ -643,6 +712,9 @@ bash + python3. Run it in a spare terminal, or use
 4. STAGE → PROD promotion
 5. Any escalation from a used-up retry budget or a security blocker
 
+Every human decision is committed immediately (6.7, C1), and it is pinned
+to the exact artifact version or commit that was approved.
+
 ---
 
 ## 9. `.sdlc/config.yaml` (what makes this protocol project-independent)
@@ -665,6 +737,12 @@ gates:
   monitor_window_min: 30
 human_approvals: [prd, prod_deploy, destructive_migration]
 compliance: [none | pci-dss | gdpr | rbi | hipaa]
+git:                            # 6.7
+  main_branch: main
+  item_branch: feature/<ITEM-ID>  # fix/<ITEM-ID> for BUG, hotfix/<ITEM-ID> for HOTFIX
+  remote: origin                # or null for local-only
+  push: on_commit               # on_commit | on_approval | never
+  checkpoint_min: 30            # a dev agent commits at least this often while working
 tracing:
   run_timeout_min: 60           # spawner marks a silent run timed_out after this
   heartbeat_min: 2              # max gap between an agent's `progress` events
@@ -689,6 +767,8 @@ The protocol stays the same and only the roster changes.
   than they should have been)
 - DEV ↔ QA round-trips per item
 - Human escalations per item
+- Commit hygiene: time between commits during runs, uncommitted-work
+  recoveries (6.7 start-up check), time from human approval to its commit
 - Repeat-mistake rate (the same `lessons.md` entry triggered again)
 - From `trace/`: runs per item, run duration per agent (p50/p95), failed or
   timed-out run rate per agent, orphaned runs, retries per stage

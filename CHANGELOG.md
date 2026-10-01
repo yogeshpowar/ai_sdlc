@@ -1,5 +1,23 @@
 # Changelog: SDLC protocol
 
+## 1.3 — 2026-10-02
+
+### Added
+- **Commit policy (§6.7, rewritten):** which branch each kind of change goes
+  on, and seven mandatory commit points (C1–C7). The key ones: a human
+  approval is committed (and pushed) **immediately**; dev agents commit at
+  every checkpoint and at least every `git.checkpoint_min` minutes; nobody
+  hands off or stops with uncommitted work.
+- An approval pins the exact artifact version or commit it covers. Later
+  changes void it and need a new request.
+- Commit message conventions with `Run-Id`, `Item`, `Approved-By`,
+  `Approval` and `Changed-By` trailers; push policy (`git.push`); a list of
+  things never to do; the Orchestrator's dirty-tree recovery on start.
+- `git` section in `config.yaml`; gates require committed work (DEV → REVIEW)
+  and a pinned, committed approval (STAGE → PROD).
+- `_common.md`, `orchestrator.md`, `devops.md`, GUIDE.md and the kickoff
+  prompt updated to match.
+
 ## 1.2.1 — 2026-10-02 (docs only, protocol unchanged)
 
 ### Added

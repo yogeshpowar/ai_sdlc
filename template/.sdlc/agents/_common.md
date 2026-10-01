@@ -28,12 +28,19 @@ tokens and permissions, which are never relaxed.
   This feeds the Live view in `TODO.md` and `bin/sdlc-watch` (PROTO.md §6.11).
 - Never put secrets, credentials or personal data in any protocol file,
   trace or transcript. Mask them as `****`.
-- Agent commits use `Run-Id: <RUN-ID>` as a trailer. Protocol-only commits use
-  the `sdlc(<ITEM-ID>): …` subject prefix.
+- **Commit early and often (PROTO.md §6.7).** Product work goes on the item
+  branch (`feature/<ITEM-ID>`), never the main branch, and never with `.sdlc/`
+  changes in it. Commit at every checkpoint: an AC done and green, a
+  migration written, or at least every `git.checkpoint_min` minutes. Messages
+  are `<type>(<ITEM-ID>): …` with trailers `Run-Id: <RUN-ID>` and
+  `Item: <ITEM-ID>`. `.sdlc/` files are committed by the Orchestrator.
+- Never force-push, rewrite or amend shared history, and never commit secrets.
 - Stay inside `tokens.per_run_max`. If you are about to exceed it, stop and
   escalate (reason `token_budget`).
 
 ## Finishing
+0. Commit all your work (no dirty tree, ever). Push it if `git.remote` is set.
+   Your handoff message names the final commit SHA.
 1. Self-check your **Exit criteria**. If any fail, don't hand off. Fix them,
    or end with `failed` and a clear `reason`.
 2. Write exactly one message (§6.5): a `handoff` on success, or a `reject`,

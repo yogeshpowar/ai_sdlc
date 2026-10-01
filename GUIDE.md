@@ -77,6 +77,7 @@ Edit **`.sdlc/config.yaml`**:
 | `human_approvals` | Where you want to say yes before agents continue. The default is PRD sign-off and prod deploys. |
 | `compliance` | Any regulations that apply. The security agent checks against these. |
 | `tokens` | Budgets per run and per item. Start generous and tighten once you've seen real numbers. |
+| `git` | Your main branch name, the remote (`origin`, or `null` if local only) and when to push. Agents commit regularly whatever you choose (see below) |
 
 ---
 
@@ -122,7 +123,10 @@ write your spawned/started events to .sdlc/trace/runs.jsonl.
    agent as a sub-agent with its own run ID, in its own fresh context.
 4. After every event, update state.json, the item's log.md, and run
    .sdlc/bin/sdlc-status --write.
-5. Stop and tell me whenever a human approval is needed (outbox/), and
+5. Commit as PROTO.md §6.7 requires: code on item branches at every
+   checkpoint, .sdlc/ on main after every run, and each of my approvals
+   immediately when it lands.
+6. Stop and tell me whenever a human approval is needed (outbox/), and
    continue when I say so.
 ```
 
@@ -169,6 +173,7 @@ create the file **with the same name, but `approval` instead of
 type: approval
 item: FEAT-0001-product-list
 decision: approved          # approved | rejected | changes-requested
+approves: items/FEAT-0001-product-list/20-design/prd.md@v3   # exactly what the request named (or a commit SHA for prod)
 by: human:<your-name>
 date: 2026-10-02
 ---
@@ -176,6 +181,11 @@ Approved. Keep the listing page under 1s on 3G.
 ```
 
 Then tell the Orchestrator "continue" (or just restart it with the kickoff prompt).
+**It commits your approval immediately**, before doing anything else
+(`sdlc(<ID>): approved … by human:<you>`, with `Approved-By:` and `Approval:`
+trailers) and pushes it if a remote is set. You can also commit the file
+yourself. Your approval covers the exact version named in the request
+(e.g. `prd.md@v3`). If the agents change it afterwards, they have to ask again.
 
 The usual approval points (`config.yaml` → `human_approvals`):
 - **PRD sign-off.** Read `items/<ID>/20-design/prd.md` and check the
@@ -185,6 +195,16 @@ The usual approval points (`config.yaml` → `human_approvals`):
   `60-deploy/rollback-plan.md`.
 - **Destructive migrations, accepted security risks, used-up retry or token
   budgets.** The request says what happened and what the options are.
+
+### Commits you'll see
+The agents commit regularly, so nothing is lost if a session dies (§6.7):
+- **Code** goes on `feature/<ID>` branches: at each finished acceptance
+  criterion, at least every 30 minutes, and always before handoff. These
+  branches merge to main only after review.
+- **`.sdlc/` records** go on the main branch: after every agent run finishes,
+  and **immediately after each of your approvals**.
+- `git log --grep "Approved-By"` lists every decision you've made.
+- `git log --grep "Item: FEAT-0001"` lists everything done for one item.
 
 ### Ask for something new, or report a bug
 Drop a file in **`.sdlc/inbox/`**, named `<YYYYMMDD-HHMM>-new-<kind>.md`:
@@ -210,6 +230,9 @@ Questions show up in `outbox/` (or in the runner's chat). Answer with an
 - Don't hand-edit anything under `.sdlc/` except `brief.md`, `config.yaml`,
   `agents/`, `inbox/` and `approvals/` (§6.6). Everything else is the
   agents' record. If it looks wrong, say so in `inbox/`.
+- Don't leave your own edits to `brief.md`, `config.yaml` or `agents/`
+  uncommitted for long. Commit them, or the Orchestrator will (as
+  `Changed-By: human:…`) on its next start.
 - Don't fix agents' code on their branches yourself. File it as a bug or
   review comment so the loop (and `lessons.md`) learns from it.
 
@@ -223,6 +246,7 @@ Questions show up in `outbox/` (or in the runner's chat). Answer with an
 | The same item bouncing `[f]` → `[o]` | Dev ↔ QA rework | After `retry_budget` rounds it escalates to you. Read the `qa-report.*.r<N>.md` files |
 | Tokens climbing fast | A loop or an oversized task | Check `item.md` → Tokens by agent. Lower `tokens.per_item_max` or split the item |
 | An agent did something odd | Debug the run | `grep <RUN-ID> .sdlc/trace/runs.jsonl`, then read `trace/runs/<date>/<RUN-ID>.jsonl` (§6.9 has ready-made commands) |
+| `wip(<ID>): recovered from RUN-…` commits | A run crashed with uncommitted work, and the Orchestrator saved it | Nothing. The next run picks it up. Frequent ones mean runs are dying, so check their transcripts |
 | A mistake keeps coming back | The lesson isn't recorded | Check `knowledge/lessons.md`. Add the entry via `inbox/` if the reviewer missed it |
 
 ---

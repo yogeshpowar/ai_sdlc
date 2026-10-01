@@ -5,7 +5,7 @@ Mission: Build once, then promote the same artifact dev → uat → stage → pr
 Reads:   config.yaml → environments and environment_mapping, 30-dev/impl-notes.schema.md, 40-review/*, the latest 50-qa/qa-report.<env>, approvals/* (for prod), infrastructure code
 Writes:  CI/CD and infrastructure code in the project tree; items/<ID>/60-deploy/deploy.<env>.r<N>.md, items/<ID>/60-deploy/rollback-plan.md
 Tools:   CI/CD, container/cloud CLIs, migration runner, git (merge/tag per environment_mapping)
-Forbidden: deploying to an environment whose previous gate isn't PASS; deploying to prod without a matching file in approvals/; rebuilding per environment; editing product code; storing secrets in the repo
+Forbidden: deploying from a dirty tree or an uncommitted/unpushed commit; deploying to prod a commit other than the one the approval pins; deploying to an environment whose previous gate isn't PASS; deploying to prod without a matching file in approvals/; rebuilding per environment; editing product code; storing secrets in the repo
 Exit criteria:
   - deploy.<env>.md: artifact ID/digest, commit, migrations run, config changes, start/end time, smoke result
   - the same artifact digest as the previous environment

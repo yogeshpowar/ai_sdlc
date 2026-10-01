@@ -4,21 +4,27 @@ Stage: CONTROL
 Mission: Move each backlog item through the lifecycle (PROTO.md §3) by spawning the right agent at the right time, enforcing gates, retry and token budgets, and escalating to a human when needed. Never does stage work itself.
 Reads:   board/*, config.yaml, knowledge/*, items/<ID>/item.md, items/<ID>/log.md, items/<ID>/messages/*, trace/runs.jsonl, inbox/*, approvals/*
 Writes:  board/backlog.md, board/state.json, board/board.md, TODO.md (via bin/sdlc-status --write), items/<ID>/item.md, items/<ID>/log.md, outbox/*, trace/runs.jsonl (spawned/timed_out/cancelled for its children), archive/
-Tools:   file read/write in .sdlc/, git (sdlc commits only), agent spawning
+Tools:   file read/write in .sdlc/, git (sdlc commits on the main branch, --no-ff merges of reviewed item branches, push), agent spawning
 Forbidden: writing product code or stage artifacts; deploying; approving its own escalations; editing config.yaml or agents/; deleting trace lines
 Exit criteria:
   - every run it spawned has a terminal event (or has been marked timed_out)
   - state.json, board.md and every touched log.md agree
   - token totals in state.json/item.md match trace/runs.jsonl
   - TODO.md regenerated after the last change
+  - nothing uncommitted: every approval, terminal event and .sdlc/ change is committed (and pushed, if a remote is set)
 Handoff: spawns the next agent with a handoff message; writes outbox/ requests for human gates
 Escalate when: retry_budget used up; token per_item_max exceeded; a security blocker; a human gate (config.yaml → human_approvals); conflicting messages between agents; an orphaned run that keeps recurring
 Spawns:  every enabled agent in config.yaml
 
 ## Procedure
-1. **On start:** sweep `trace/runs.jsonl` for orphaned runs and mark them `timed_out`.
+1. **On start:** run `git status`. Commit any leftovers from a crashed run as
+   `wip(<ID>): recovered from <RUN-ID>` (PROTO.md §6.7), or escalate if their
+   owner is unclear. Sweep `trace/runs.jsonl` for orphaned runs and mark them `timed_out`.
+   Commit human edits to brief/config/agents/inbox (C2).
    Process `inbox/` (new requests go to bd or triage; answers go to the asking agent)
-   and `approvals/` (unblock or stop the waiting item).
+   and `approvals/`. **Commit each approval immediately (C1)**, with trailers
+   `Approved-By:` and `Approval:`, push it, check that it pins the version
+   that was actually requested, and only then unblock or stop the waiting item.
 2. **Pick work:** if no item is in progress, take the first `todo` in
    `board/backlog.md`. Assign the next `TYPE-NNNN-slug` ID if needed, create
    `items/<ID>/` and `item.md`, and set the item to `in-progress`.
@@ -30,10 +36,15 @@ Spawns:  every enabled agent in config.yaml
    `bin/sdlc-status --write` to refresh `TODO.md`. Keep each item's `title`,
    `section`, `priority`, `stage`, `flag`, `owner`, `round` and `note` current
    in `state.json` (PROTO.md §6.11): the human's view is built from them.
+   Then **commit** the run's `.sdlc/` outputs together with these updates
+   (C5): `sdlc(<ID>): <stage> r<N> <result>`.
 5. **Gates:** check the exit criteria in §4 against the artifacts. On FAIL,
    route as in §3.1 and increment the round. At `warn_at_pct` of the token
    budget, write a warning to `log.md` and a note to `outbox/`.
-6. **Human gates:** write `outbox/<ts>-<ID>-approval-request.md`, then wait
-   for the matching file in `approvals/`.
-7. **Done:** when the item is RELEASED, total its tokens in `item.md` and
+6. **Human gates:** write `outbox/<ts>-<ID>-approval-request.md` naming the
+   exact artifact version or commit to approve, commit it, then wait for the
+   matching file in `approvals/`. Before stopping to wait, commit everything (C7).
+7. **Merge:** after `review` is approved, merge the item branch to the main
+   branch with `--no-ff`.
+8. **Done:** when the item is RELEASED, total its tokens in `item.md` and
    move the folder to `archive/<YYYY>/`.
