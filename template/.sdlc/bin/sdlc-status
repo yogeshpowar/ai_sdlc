@@ -128,7 +128,11 @@ def item_mark(it):
     return STAGE_MARK.get(stage, "[ ]")
 
 
-def render(project, state, events, runs, colour=False):
+def render(project, state, events, runs, colour=False, recent=10, released_runs=False,
+           show_released=True, parts=False):
+    """The report as one string, or (parts=True) a dict of line lists:
+    header, live, recent, board, legend. Released items show no run subtasks
+    unless released_runs, which keeps TODO.md from growing without bound."""
     t = now()
     items = state.get("items", {})
     live = [r for r in runs.values() if r.get("spawned") and "end" not in r]
@@ -157,6 +161,7 @@ def render(project, state, events, runs, colour=False):
                                    for k, v in envs.items()))
         L.append("")
 
+    i_live = len(L)
     L.append("## Live")
     if not live:
         L.append("- nobody is working right now")
@@ -175,8 +180,9 @@ def render(project, state, events, runs, colour=False):
                  f"`{r.get('run_id')}`")
     L.append("")
 
+    i_recent = len(L)
     L.append("## Recent")
-    feed = [e for e in events if e.get("event") in TERMINAL | {"spawned"}][-10:]
+    feed = [e for e in events if e.get("event") in TERMINAL | {"spawned"}][-recent:]
     if not feed:
         L.append("- no activity yet")
     icon = {"spawned": "▶️", "completed": "✅", "failed": "❌", "timed_out": "⌛",
@@ -197,6 +203,7 @@ def render(project, state, events, runs, colour=False):
                  f"{what} · {r.get('item') or e.get('item')} · {r.get('stage') or ''}{extra}")
     L.append("")
 
+    i_board = len(L)
     # Items grouped by section, as TODO.MD task lines with runs as subtasks.
     def sort_key(kv):
         stage = (kv[1].get("stage") or "BACKLOG").upper()
@@ -250,6 +257,10 @@ def render(project, state, events, runs, colour=False):
             L.append(f"{pad}    - {it['note']}")
         item_runs = sorted((r for r in runs.values() if r.get("item") == iid),
                            key=lambda r: r.get("spawned") or "")
+        if (it.get("stage") or "").upper() in ("RELEASED", "CANCELLED") and not released_runs:
+            if item_runs:
+                L[-1] += f" runs:{len(item_runs)}"
+            item_runs = []
         for r in item_runs:
             rm = mark(RUN_MARK.get(r.get("end"), "[o]"), colour)
             d1 = (r.get("spawned") or "")[:10]
@@ -270,16 +281,24 @@ def render(project, state, events, runs, colour=False):
     for sec, rows in sections.items():
         L.append(f"## {sec}")
         L.append("")
+        rows = [(i, v) for i, v in rows if show_released or sort_key((i, v))[0] != 2]
+        if not rows:
+            L.pop(); L.pop()  # drop the empty section heading
+            continue
         for iid, it in rows:
             if it.get("epic") in items:
                 continue  # rendered under its epic
             emit_item(iid, it, 0)
         L.append("")
 
+    i_legend = len(L)
     L += ["---",
           "Legend: `[ ]` todo · `[.]` req · `[o]` design/dev · `[O]` review/qa · `[x]` ready · "
           "`[u]` uat · `[s]` stage · `[p]` prod · `[X]` done · `[B]` blocked · "
           "`[f]`/`[uf]`/`[sf]`/`[pf]` failed (TODO.MD format)", ""]
+    if parts:
+        return {"header": L[:i_live], "live": L[i_live:i_recent], "recent": L[i_recent:i_board],
+                "board": L[i_board:i_legend], "legend": L[i_legend:]}
     return "\n".join(L)
 
 

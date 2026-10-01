@@ -837,11 +837,32 @@ current owner or the run's agent; `k:v` = `id`, `stage`, `round`, `tok`,
 | blocked (waiting on a human) | `[B]` | | | |
 | failed gate in UAT / STAGE / PROD / elsewhere | `[uf]` / `[sf]` / `[pf]` / `[f]` | | | |
 
-**`bin/sdlc-watch [seconds]`** is the live show: it re-renders the same
-report every 2 s (default) straight from `state.json` and `trace/`, so it
-updates between Orchestrator writes too. It is read-only and needs only
-bash + python3. Run it in a spare terminal, or use
-`watch -n 2 cat .sdlc/TODO.md` for the last snapshot.
+To keep `TODO.md` from growing without bound, **released items are one line
+each** (with `runs:<n>`). Their run history stays in `trace/`.
+
+**`bin/sdlc-watch [seconds]`** is the live show, a split-screen terminal
+view refreshed every 2 s (default) straight from `state.json` and `trace/`:
+
+```
+ header: agents working · current item · tokens · env versions
+┌──────────────────────────────┬─────────────────────────────────────────┐
+│ LIVE                         │ STOREFRONT                              │
+│ - ⏳ qa on FEAT-0002 · 3m 60% │ * [u] (p0) … Cart and checkout @qa …    │
+│ RECENT (newest first)        │     * [X] … dev r1: Implement cart API  │
+│ - 14:39 ✅ backend completed │ * [ ] (p2) … Wishlist                    │
+│ - 14:30 ▶ qa spawned …       │ PAYMENTS …                       1-28/92 │
+└──────────────────────────────┴─────────────────────────────────────────┘
+ [LEFT] live+recent · board │ ↑↓ PgUp/PgDn g/G · Tab · d · r · [ ] · ? · q
+```
+
+- **Left pane:** Live plus as much of Recent as fits, auto-updating.
+- **Right pane:** the board, scrollable (`↑/↓`, `j/k`, `PgUp/PgDn`, `g/G`).
+  `Tab` switches the pane you're scrolling. `d` shows or hides released
+  items, `r` shows or hides their runs, and `[`/`]` resizes the split.
+  Scroll position is kept across refreshes.
+- Below 100 columns the panes stack top/bottom. `--plain` (or a non-terminal
+  stdout) prints the whole report each interval instead.
+- It is read-only and needs only python3 (standard `curses`).
 
 **What feeds it**, and is therefore required:
 - `progress` events from every running agent (6.9), written at least every

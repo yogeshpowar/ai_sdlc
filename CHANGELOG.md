@@ -27,6 +27,13 @@ steers after every release.
 - Principles 8 and 9; `delivery` section in `config.yaml`; flow metrics
   (cycle time, release frequency, WIP).
 - `sdlc-status` shows size, flags and epics, with slices nested under their epic.
+- **`sdlc-watch` is now a split-screen view** (python3 `curses`, no
+  dependencies): Live + Recent on the left, auto-updating; the board on the
+  right, scrollable, with keys for paging, switching panes, hiding released
+  items, showing their runs and resizing. It stacks top/bottom below 100
+  columns, and `--plain` keeps the old full refresh.
+- `TODO.md` shows released items as one line (`runs:<n>`) instead of listing
+  every run, so it no longer grows without bound.
 
 ### Changed
 - `human_approvals` is now per size (`spec: [M]`, `prod_deploy: [S, M]`,

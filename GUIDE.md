@@ -188,13 +188,19 @@ In a second terminal:
 cd ~/working/my-app && .sdlc/bin/sdlc-watch
 ```
 
-You'll see, refreshed every 2 seconds:
-- **Live:** which agent is working, on which item, for how long, how far
-  along, and its current step in plain words
-- **Recent:** the last spawns and finishes (▶️ ✅ ❌ ⌛ 🙋), with token costs
-- **Board:** every item in [TODO.MD](https://github.com/doublefreein/TODO.MD)
-  format: `[o]` building, `[O]` in review or QA, `[u]` in UAT, `[s]` in
-  staging, `[p]` in prod, `[X]` done, `[B]` **waiting for you**, `[f]` failed
+It's a split screen, refreshed every 2 seconds:
+- **Left: Live + Recent.** Which agent is working, on which item, for how
+  long, how far along, and its current step in plain words. Below that, the
+  latest spawns and finishes (▶ ✅ ❌ ⌛ 🙋) with token costs, newest first.
+- **Right: the Board,** which you can scroll. Every item is in
+  [TODO.MD](https://github.com/doublefreein/TODO.MD) format: `[o]` building,
+  `[O]` in review or QA, `[u]` in UAT, `[s]` in staging, `[p]` in prod, `[X]`
+  done, `[B]` **waiting for you**, `[f]` failed.
+
+Keys: `↑/↓` or `j/k` scroll · `PgUp/PgDn` page · `g/G` top/bottom · `Tab`
+switch pane · `d` hide/show released items · `r` show runs of released
+items · `[`/`]` resize · `?` help · `q` quit. On a narrow terminal the panes
+stack top/bottom. `sdlc-watch --plain` gives the old full-page refresh.
 
 The same report is saved in **`.sdlc/TODO.md`**, so you can read it later
 or from your phone in the git host.

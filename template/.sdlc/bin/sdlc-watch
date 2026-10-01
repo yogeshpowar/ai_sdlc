@@ -1,17 +1,273 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright © 2026 Doublefree.in and contributors.
-# Live view of the SDLC: which agents are working, recent events, and the
-# TODO.MD board. Read-only: it renders from state.json and trace/, never writes.
-#
-# Usage: .sdlc/bin/sdlc-watch [interval-seconds]   (default 2; Ctrl-C to stop)
-set -euo pipefail
-here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-interval="${1:-2}"
-trap 'tput cnorm 2>/dev/null || true; echo; exit 0' INT TERM
-tput civis 2>/dev/null || true
-while true; do
-  out="$(SDLC_COLOUR=1 "$here/sdlc-status" 2>&1 || true)"
-  printf '\033[H\033[2J%s\n\n(refreshing every %ss · Ctrl-C to stop)\n' "$out" "$interval"
-  sleep "$interval"
-done
+"""Live split-screen view of the SDLC (PROTO.md §6.11). Read-only.
+
+  header: agents working · current item · tokens · env versions
+  left:   LIVE + RECENT (auto-updating, newest first)
+  right:  BOARD, i.e. what TODO.md shows (scrollable)
+
+Side by side on wide terminals (>= 100 columns), stacked top/bottom otherwise.
+
+Keys: up/down or j/k scroll · PgUp/PgDn or space/b page · g/G top/bottom
+      Tab switch pane · d show/hide released items · r show/hide runs of
+      released items · [ / ] narrow/widen the left pane · ? help · q quit
+
+Usage: sdlc-watch [interval-seconds] [--plain]
+  --plain   no split view: reprint the whole report every interval
+"""
+import curses, importlib.machinery, importlib.util, locale, os, re, sys, time, unicodedata
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+_loader = importlib.machinery.SourceFileLoader("sdlc_status", os.path.join(HERE, "sdlc-status"))
+_spec = importlib.util.spec_from_loader("sdlc_status", _loader)
+st = importlib.util.module_from_spec(_spec)
+_loader.exec_module(st)
+SDLC = os.path.abspath(os.path.join(HERE, ".."))
+
+MARK_RE = re.compile(r"^(\s*\*\s)(\[(?:uf|sf|pf|[ .oOxXusSpBf])\])")
+MARK_COLOUR = {"[X]": 1, "[p]": 1, "[x]": 1, "[o]": 2, "[O]": 2, "[.]": 2,
+               "[u]": 3, "[s]": 3, "[B]": 4, "[f]": 5, "[uf]": 5, "[sf]": 5, "[pf]": 5}
+
+
+# ---- display width (emoji and CJK take two columns) -------------------------
+def cw(ch):
+    if unicodedata.combining(ch) or ch in "‍️":
+        return 0
+    return 2 if unicodedata.east_asian_width(ch) in "WF" else 1
+
+
+def width(s):
+    return sum(cw(c) for c in s)
+
+
+def wrap(line, w):
+    """Wrap one line to display width w. Continuation lines keep the indent, plus 2."""
+    if w <= 4 or width(line) <= w:
+        return [line]
+    lead = len(line) - len(line.lstrip(" "))
+    pad = " " * min(lead + 2, w // 2)
+    out, cur, cur_w = [], "", 0
+    for word in re.split(r"(\s+)", line):
+        ww = width(word)
+        if cur_w + ww > w and cur.strip():
+            out.append(cur.rstrip())
+            cur, cur_w = pad, len(pad)
+            if word.isspace():
+                continue
+        while ww > w - cur_w:  # a single word longer than the line
+            take, tw = "", 0
+            for c in word:
+                if tw + cw(c) > w - cur_w:
+                    break
+                take += c; tw += cw(c)
+            if not take:
+                break
+            out.append(cur + take)
+            word = word[len(take):]; ww = width(word)
+            cur, cur_w = pad, len(pad)
+        cur += word; cur_w += ww
+    if cur.strip():
+        out.append(cur.rstrip())
+    return out
+
+
+def clean(line):
+    """Markdown → terminal: drop the HTML comment and the ** / ` markers."""
+    if line.startswith("<!--"):
+        return None
+    # Drop VS16 (U+FE0F): terminals disagree on how wide "▶️" / "⚠️" are, but
+    # agree on the plain glyph, which keeps the panes aligned.
+    return line.replace("**", "").replace("`", "").replace("\ufe0f", "")
+
+
+def pane_lines(raw, w):
+    out = []
+    for line in raw:
+        c = clean(line)
+        if c is not None:
+            out.extend(wrap(c, w) if c else [""])
+    return out
+
+
+# ---- drawing -----------------------------------------------------------------
+def put(win, y, x, text, w, attr=0):
+    """Write text clipped to display width w at (y, x)."""
+    out, used = "", 0
+    for c in text:
+        if used + cw(c) > w:
+            break
+        out += c; used += cw(c)
+    try:
+        win.addstr(y, x, out, attr)
+    except curses.error:
+        pass  # the bottom-right cell raises after writing; harmless
+
+
+def draw_line(win, y, x, line, w, colours):
+    m = MARK_RE.match(line)
+    if m and colours:
+        pre, mk = m.group(1), m.group(2)
+        put(win, y, x, pre, w)
+        put(win, y, x + width(pre), mk, w - width(pre),
+            curses.color_pair(MARK_COLOUR.get(mk, 0)) | curses.A_BOLD)
+        put(win, y, x + width(pre) + width(mk), line[m.end():], w - width(pre) - width(mk))
+    elif line.startswith("## "):
+        put(win, y, x, line[3:].upper(), w, curses.A_BOLD)
+    else:
+        put(win, y, x, line, w)
+
+
+def main(scr, interval):
+    try:
+        curses.curs_set(0)
+    except curses.error:
+        pass
+    scr.timeout(200)
+    colours = curses.has_colors()
+    if colours:
+        curses.start_color()
+        try:
+            curses.use_default_colors(); bg = -1
+        except curses.error:
+            bg = curses.COLOR_BLACK
+        for i, c in enumerate([curses.COLOR_GREEN, curses.COLOR_YELLOW, curses.COLOR_CYAN,
+                               curses.COLOR_MAGENTA, curses.COLOR_RED], start=1):
+            curses.init_pair(i, c, bg)
+    opts = {"show_released": True, "released_runs": False}
+    scroll = {"left": 0, "right": 0}
+    focus, split_pct, help_on = "right", 42, False
+    parts, last = None, 0.0
+
+    while True:
+        H, W = scr.getmaxyx()
+        if parts is None or time.time() - last >= interval:
+            try:
+                parts = st.render(*st.load(SDLC), recent=max(H, 20), parts=True,
+                                  released_runs=opts["released_runs"],
+                                  show_released=opts["show_released"])
+            except Exception as e:  # never crash on a half-written state file
+                parts = {"header": [f"(waiting for readable state: {e})"],
+                         "live": [], "recent": [], "board": [], "legend": []}
+            last = time.time()
+        scr.erase()
+        if H < 8 or W < 30:
+            put(scr, 0, 0, "terminal too small (q quits)", W)
+            scr.refresh()
+            if scr.getch() in (ord("q"), 27):
+                return
+            continue
+
+        head = [c.lstrip("> ").strip() for c in (clean(l) for l in parts["header"]) if c and c.strip()]
+        put(scr, 0, 0, (head[0] if head else "SDLC").ljust(W), W, curses.A_BOLD | curses.A_REVERSE)
+        for i, h in enumerate(head[1:3], start=1):
+            put(scr, i, 0, h, W)
+        top = 1 + len(head[1:3])
+
+        wide = W >= 100
+        body_h = H - top - 1  # the last row is the key bar
+        if wide:
+            lw = max(30, min(W - 40, W * split_pct // 100))
+            boxes = {"left": (top, 0, body_h, lw), "right": (top, lw + 1, body_h, W - lw - 1)}
+        else:
+            lh = max(4, body_h * 2 // 5)
+            boxes = {"left": (top, 0, lh, W), "right": (top + lh + 1, 0, body_h - lh - 1, W)}
+
+        content = {"left": pane_lines(parts["live"] + parts["recent"], boxes["left"][3] - 1),
+                   "right": pane_lines(parts["board"] + parts["legend"], boxes["right"][3] - 1)}
+        for name, (y0, x0, h, w) in boxes.items():
+            lines = content[name]
+            maxs = max(0, len(lines) - h)
+            scroll[name] = max(0, min(scroll[name], maxs))
+            for i, line in enumerate(lines[scroll[name]: scroll[name] + h]):
+                draw_line(scr, y0 + i, x0, line, w - 1, colours)
+            if maxs:
+                pos = f" {scroll[name] + 1}-{min(len(lines), scroll[name] + h)}/{len(lines)} "
+                put(scr, y0 + h - 1, x0 + max(0, w - width(pos) - 1), pos, width(pos), curses.A_REVERSE)
+        if wide:
+            for y in range(top, top + body_h):
+                put(scr, y, boxes["left"][3], "│", 1, curses.A_DIM)
+        else:
+            put(scr, boxes["right"][0] - 1, 0, "─" * W, W, curses.A_DIM)
+
+        tag = lambda n: f"[{n.upper()}]" if focus == n else n
+        bar = (f" {tag('left')} live+recent · {tag('right')} board │ ↑↓ PgUp/PgDn g/G · Tab · "
+               f"d {'hide' if opts['show_released'] else 'show'} released · r runs · [ ] split · "
+               f"? help · q quit │ {interval}s ")
+        put(scr, H - 1, 0, bar.ljust(W), W, curses.A_REVERSE)
+
+        if help_on:
+            lines = (__doc__ or "").strip().splitlines()
+            hw = min(W - 2, max(width(l) for l in lines) + 4)
+            hh = min(H - 2, len(lines) + 2)
+            y0, x0 = (H - hh) // 2, (W - hw) // 2
+            for i in range(hh):
+                put(scr, y0 + i, x0, " " * hw, hw, curses.A_REVERSE)
+            for i, l in enumerate(lines[: hh - 2]):
+                put(scr, y0 + 1 + i, x0 + 2, l, hw - 4, curses.A_REVERSE)
+
+        scr.refresh()
+        k = scr.getch()
+        if k == -1 or k == curses.KEY_RESIZE:
+            continue
+        if help_on:
+            help_on = False
+            continue
+        page = max(1, boxes[focus][2] - 1)
+        if k in (ord("q"), 27):
+            return
+        elif k in (ord("?"), ord("h")):
+            help_on = True
+        elif k == 9:
+            focus = "left" if focus == "right" else "right"
+        elif k in (curses.KEY_DOWN, ord("j")):
+            scroll[focus] += 1
+        elif k in (curses.KEY_UP, ord("k")):
+            scroll[focus] -= 1
+        elif k in (curses.KEY_NPAGE, ord(" ")):
+            scroll[focus] += page
+        elif k in (curses.KEY_PPAGE, ord("b")):
+            scroll[focus] -= page
+        elif k in (ord("g"), curses.KEY_HOME):
+            scroll[focus] = 0
+        elif k in (ord("G"), curses.KEY_END):
+            scroll[focus] = 10 ** 9
+        elif k == ord("d"):
+            opts["show_released"] = not opts["show_released"]; parts = None
+        elif k == ord("r"):
+            opts["released_runs"] = not opts["released_runs"]; parts = None
+        elif k == ord("["):
+            split_pct = max(20, split_pct - 5)
+        elif k == ord("]"):
+            split_pct = min(75, split_pct + 5)
+
+
+def plain(interval):
+    try:
+        while True:
+            out = st.render(*st.load(SDLC), colour=sys.stdout.isatty())
+            sys.stdout.write("\033[H\033[2J" + out + f"\n(refreshing every {interval}s · Ctrl-C to stop)\n")
+            sys.stdout.flush()
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        print()
+    except BrokenPipeError:  # e.g. piped into head
+        sys.stderr.close()
+
+
+if __name__ == "__main__":
+    args = sys.argv[1:]
+    if any(a in ("-h", "--help") for a in args):
+        print(__doc__)
+        sys.exit(0)
+    nums = [a for a in args if re.fullmatch(r"\d+(\.\d+)?", a)]
+    interval = float(nums[0]) if nums else 2.0
+    interval = int(interval) if interval.is_integer() else interval
+    if "--plain" in args or not sys.stdout.isatty():
+        plain(interval)
+    else:
+        locale.setlocale(locale.LC_ALL, "")
+        try:
+            curses.wrapper(main, interval)
+        except KeyboardInterrupt:
+            pass
