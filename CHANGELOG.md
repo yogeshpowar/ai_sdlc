@@ -1,6 +1,6 @@
 # Changelog: SDLC protocol
 
-## Unreleased (docs only, protocol unchanged)
+## 1.2.1 — 2026-10-02 (docs only, protocol unchanged)
 
 ### Added
 - `GUIDE.md`: step-by-step instructions for humans: set up, brief, config,
