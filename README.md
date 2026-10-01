@@ -56,9 +56,3 @@ Then:
 Edit `PROTO.md` here, bump `VERSION`, and add a `CHANGELOG.md` entry. Existing
 projects keep their pinned copy until you deliberately copy the new
 `PROTO.md` into their `.sdlc/` and update their `PROTOCOL_VERSION`.
-
-## Projects using it
-
-| Project | Protocol version | Notes |
-|---|---|---|
-| `~/working/agi` (golearn) | 1.1 | Where the protocol was developed. Migrated from root-level TODO/CONTEXT/PRD/REVIEW files. |

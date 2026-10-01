@@ -240,7 +240,7 @@ Files in a repo fall into exactly one of two kinds:
 - `TYPE` ∈ `FEAT` (feature), `BUG`, `CHORE` (tech debt, infra), `SPIKE` (research), `HOTFIX`
 - `NNNN` is a zero-padded number that only increases and is unique across all types
 - `slug` is kebab-case, at most 5 words
-- e.g. `FEAT-0013-select-statement`, `BUG-0014-menu-crash-on-eof`
+- e.g. `FEAT-0012-user-login`, `BUG-0014-login-timeout`
 
 **Stage folders** have a numeric prefix so they sort in lifecycle order:
 `10-req`, `20-design`, `30-dev`, `40-review`, `50-qa`, `60-deploy`, `70-release`.
@@ -271,8 +271,8 @@ The gaps leave room to add stages later (e.g. `45-security`).
 - e.g. `0007-qa-to-backend-reject.md`, `0008-backend-to-qa-handoff.md`
 
 **Inbox, outbox and approvals:** `<YYYYMMDD-HHMM>-<ITEM-ID|new>-<kind>.md`
-- e.g. `outbox/20261002-1430-FEAT-0013-approval-request.md`, then
-  `approvals/20261002-1430-FEAT-0013-approval.md` with the same stem, so a
+- e.g. `outbox/20261002-1430-FEAT-0012-approval-request.md`, then
+  `approvals/20261002-1430-FEAT-0012-approval.md` with the same stem, so a
   request and its decision always pair up
 
 **General rules:** lowercase kebab-case, `.md` for prose, `.yaml`/`.json` only
@@ -285,9 +285,9 @@ Every Markdown protocol file starts with:
 
 ```yaml
 ---
-id: FEAT-0013-select-statement/20-design/prd       # item/stage/artifact
+id: FEAT-0012-user-login/20-design/prd       # item/stage/artifact
 type: prd                     # artifact | message kind
-item: FEAT-0013-select-statement
+item: FEAT-0012-user-login
 stage: design
 author: prd-agent             # agent name, or human:<handle>
 run_id: RUN-20261002T143000Z-prd-9c2e   # the run that last wrote this file (6.9); null for humans
@@ -363,7 +363,7 @@ Upstream artifacts are read-only for downstream agents. To change one, send a
   to `.gitignore`. `trace/*.jsonl` **is** committed, because it's the debugging record.
 - Agent commits carry a `Run-Id: <RUN-ID>` trailer (6.9).
 - Protocol changes go in their own commits with an `sdlc:` prefix, e.g.
-  `sdlc(FEAT-0013): qa@uat r1 FAIL`, so they don't mix with product commits.
+  `sdlc(FEAT-0012): qa@uat r1 FAIL`, so they don't mix with product commits.
 - When an item reaches `RELEASED` or is cancelled, the Orchestrator moves
   `items/<ITEM-ID>/` to `archive/<YYYY>/` and keeps the board lean.
 
@@ -401,7 +401,7 @@ exceptions, including the Orchestrator's own runs.
 `parent_run`. Following `parent_run` upwards rebuilds who spawned whom, e.g.
 
 ```
-RUN-…-orchestrator-01ab                     (root, picks FEAT-0015)
+RUN-…-orchestrator-01ab                     (root, picks FEAT-0012)
 ├── RUN-…-prd-9c2e                          completed  12m   61.4k tok
 ├── RUN-…-backend-44f1                      completed  31m  142.8k tok
 ├── RUN-…-reviewer-d07a                     completed   6m   28.1k tok
@@ -444,9 +444,9 @@ and writes `timed_out` for any run older than the timeout.
 Example lines:
 
 ```json
-{"ts":"2026-10-02T14:30:00Z","event":"spawned","run_id":"RUN-20261002T143000Z-qa-7f3a","parent_run":"RUN-20261002T090000Z-orchestrator-01ab","agent":"qa","item":"FEAT-0015-select-statement","stage":"qa@uat","round":1,"task":"Run acceptance tests on uat","inputs":["20-design/prd.md@v2","60-deploy/deploy.uat.r1.md"]}
+{"ts":"2026-10-02T14:30:00Z","event":"spawned","run_id":"RUN-20261002T143000Z-qa-7f3a","parent_run":"RUN-20261002T090000Z-orchestrator-01ab","agent":"qa","item":"FEAT-0012-user-login","stage":"qa@uat","round":1,"task":"Run acceptance tests on uat","inputs":["20-design/prd.md@v2","60-deploy/deploy.uat.r1.md"]}
 {"ts":"2026-10-02T14:30:04Z","event":"started","run_id":"RUN-20261002T143000Z-qa-7f3a","protocol_version":"1.1","model":"<model-id>"}
-{"ts":"2026-10-02T14:39:12Z","event":"failed","run_id":"RUN-20261002T143000Z-qa-7f3a","status":"gate_fail","reason":"AC-2 failed: select timeout case not shown","outputs":["50-qa/qa-report.uat.r1.md"],"message":"messages/0007-qa-to-backend-reject.md","duration_ms":552000,"tokens":{"input":48210,"output":6120,"cache_read":31500,"cache_write":4200,"total":54330,"subtree_total":54330},"commit":"a1b2c3d"}
+{"ts":"2026-10-02T14:39:12Z","event":"failed","run_id":"RUN-20261002T143000Z-qa-7f3a","status":"gate_fail","reason":"AC-2 failed: account not locked after 5 bad attempts","outputs":["50-qa/qa-report.uat.r1.md"],"message":"messages/0007-qa-to-backend-reject.md","duration_ms":552000,"tokens":{"input":48210,"output":6120,"cache_read":31500,"cache_write":4200,"total":54330,"subtree_total":54330},"commit":"a1b2c3d"}
 ```
 
 #### Detail events (`trace/runs/<date>/<RUN-ID>.jsonl`)
@@ -475,7 +475,7 @@ optional `pct`; required at every meaningful step and at least every
 
 ```sh
 # Everything that happened to one item, in order
-grep '"item":"FEAT-0015' .sdlc/trace/runs.jsonl
+grep '"item":"FEAT-0012' .sdlc/trace/runs.jsonl
 
 # Runs that never finished (orphans)
 jq -s 'group_by(.run_id)[] | select(all(.event!="completed" and .event!="failed"
@@ -483,7 +483,7 @@ jq -s 'group_by(.run_id)[] | select(all(.event!="completed" and .event!="failed"
        | .[0]' .sdlc/trace/runs.jsonl
 
 # Who wrote this artifact, and what was that run told to do?
-grep run_id .sdlc/items/FEAT-0015-select-statement/50-qa/qa-report.uat.r1.md
+grep run_id .sdlc/items/FEAT-0012-user-login/50-qa/qa-report.uat.r1.md
 
 # Commits made by a run
 git log --grep 'Run-Id: RUN-20261002T143000Z-qa-7f3a'
