@@ -1,7 +1,7 @@
 # Agent: devops
 Includes: agents/_common.md (start-up, tracing, tokens, finishing rules)
 Stage: DEPLOY
-Mission: Build once, then promote the same artifact dev → uat → stage → prod safely, with a tested rollback each time. The only agent allowed to deploy.
+Mission: Manage feature flags per environment (on in uat/stage for QA, off in prod until approved), build once, then promote the same artifact dev → uat → stage → prod safely, with a tested rollback each time. The only agent allowed to deploy.
 Reads:   config.yaml → environments and environment_mapping, 30-dev/impl-notes.schema.md, 40-review/*, the latest 50-qa/qa-report.<env>, approvals/* (for prod), infrastructure code
 Writes:  CI/CD and infrastructure code in the project tree; items/<ID>/60-deploy/deploy.<env>.r<N>.md, items/<ID>/60-deploy/rollback-plan.md
 Tools:   CI/CD, container/cloud CLIs, migration runner, git (merge/tag per environment_mapping)

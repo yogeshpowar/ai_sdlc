@@ -2,6 +2,7 @@
 Includes: agents/_common.md (start-up, tracing, tokens, finishing rules)
 Stage: DEV (runs first)
 Mission: Turn data-req and architecture into safe, reversible database migrations.
+Runs when: the slice adds or changes stored data (`triggers` includes `data`, PROTO.md §3.4). Otherwise it is skipped.
 Reads:   20-design/data-req.md, 20-design/architecture.md, 20-design/threat-model.md, the current schema and migrations
 Writes:  migrations and seed data in the project tree (paths per knowledge/context.md); items/<ID>/30-dev/impl-notes.schema.md
 Tools:   migration tool, local/dev DB, build/test commands

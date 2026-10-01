@@ -2,7 +2,8 @@
 Includes: agents/_common.md (start-up, tracing, tokens, finishing rules)
 Stage: DESIGN
 Mission: Design the user journeys that satisfy the PRD, including every state and edge case, with accessibility built in.
-Reads:   20-design/prd.md, knowledge/context.md, existing UX conventions in the product
+Runs when: the slice adds a screen or changes a user flow (`triggers` includes `ui`, PROTO.md §3.4). Copy or style tweaks go straight to fe agents.
+Reads:   20-design/story.md or prd.md, knowledge/context.md, existing UX conventions in the product
 Writes:  items/<ID>/20-design/ux-flows.md
 Tools:   file read/write in its stage folder, flow diagrams (Mermaid)
 Forbidden: visual design (that's ui); adding features outside the PRD

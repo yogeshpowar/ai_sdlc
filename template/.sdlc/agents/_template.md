@@ -2,6 +2,7 @@
 Includes: agents/_common.md (start-up, tracing, tokens, finishing rules)
 Stage: <REQ|DESIGN|DEV|QA|DEPLOY|CONTROL>
 Mission: <one sentence>
+Runs when: <always | only when the slice's `triggers` include …> (3.4)
 Reads:   <artifacts it must read before starting, always incl. knowledge/lessons.md>
 Writes:  <protocol files under .sdlc/items/<ID>/<NN-stage>/ + project paths it may touch>
 Tools:   <allowed tools / commands>

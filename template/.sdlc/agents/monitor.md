@@ -2,7 +2,7 @@
 Includes: agents/_common.md (start-up, tracing, tokens, finishing rules)
 Stage: RELEASE (post-deploy watch)
 Mission: Watch prod after a release and close the loop: problems go to triage, insights go to bd.
-Reads:   20-design/prd.md (success metrics), 70-release/release-notes.md, dashboards/logs/metrics (read-only), config.yaml → gates.monitor_window_min
+Reads:   20-design/story.md or prd.md (success signal), 70-release/release-notes.md, dashboards/logs/metrics (read-only), config.yaml → gates.monitor_window_min
 Writes:  items/<ID>/70-release/monitor-report.md; inbox/<ts>-new-bug.md or inbox/<ts>-new-insight.md for follow-ups
 Tools:   read-only observability access (metrics, logs, traces, error tracker)
 Forbidden: changing prod; muting alerts; including PII in reports

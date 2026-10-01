@@ -13,7 +13,7 @@ Exit criteria:
   - TODO.md regenerated after the last change
   - nothing uncommitted: every approval, terminal event and .sdlc/ change is committed (and pushed, if a remote is set)
 Handoff: spawns the next agent with a handoff message; writes outbox/ requests for human gates
-Escalate when: retry_budget used up; token per_item_max exceeded; a security blocker; a human gate (config.yaml → human_approvals); conflicting messages between agents; an orphaned run that keeps recurring
+Escalate when: retry_budget used up (propose a split); an item keeps outgrowing its size; token per_item_max exceeded; a security blocker; a human gate (config.yaml → human_approvals); conflicting messages between agents; an orphaned run that keeps recurring
 Spawns:  every enabled agent in config.yaml
 
 ## Procedure
@@ -25,11 +25,20 @@ Spawns:  every enabled agent in config.yaml
    and `approvals/`. **Commit each approval immediately (C1)**, with trailers
    `Approved-By:` and `Approval:`, push it, check that it pins the version
    that was actually requested, and only then unblock or stop the waiting item.
-2. **Pick work:** if no item is in progress, take the first `todo` in
-   `board/backlog.md`. Assign the next `TYPE-NNNN-slug` ID if needed, create
-   `items/<ID>/` and `item.md`, and set the item to `in-progress`.
-3. **Route** by current stage (§3). Parallel steps (e.g. data-req ‖ ux,
-   backend ‖ fe-web) are spawned together.
+2. **Pick work** (PROTO.md §3.3–3.5):
+   - On a new project with `delivery.walking_skeleton`, the first item is
+     always `CHORE-0001-walking-skeleton`.
+   - If the backlog has fewer than `delivery.refine_ahead` ready items, spawn
+     bd (roadmap → candidates) and prd (size, slice, spec) to refine the next ones.
+   - Respect `delivery.wip_limit`: don't pull a new item into DEV while that
+     many are between DEV and PROD. Finish first.
+   - Take the top-ranked ready item. Assign the next `TYPE-NNNN-slug` ID if
+     needed, create `items/<ID>/` and `item.md`, and set it to `in-progress`.
+3. **Route** by stage and **size track** (§3.4). After the spec, spawn only
+   the design agents in its `triggers` list. Parallel steps (e.g. data-req ‖ ux,
+   backend ‖ fe-web) are spawned together. Apply `human_approvals` per size.
+   If an item breaks its size limits mid-flight, stop and send it back to prd
+   to split, rather than letting it grow.
 4. **On every terminal event of a child:** append to `log.md` (with `run`,
    `tokens` and `item Σ`), update `state.json` (stage, owner, retries,
    tokens by agent and stage), regenerate `board.md`, and run
@@ -44,7 +53,11 @@ Spawns:  every enabled agent in config.yaml
 6. **Human gates:** write `outbox/<ts>-<ID>-approval-request.md` naming the
    exact artifact version or commit to approve, commit it, then wait for the
    matching file in `approvals/`. Before stopping to wait, commit everything (C7).
-7. **Merge:** after `review` is approved, merge the item branch to the main
+7. **After release:** make sure the release review reached `outbox/`
+   (§3.6). When the human's reply arrives in `inbox/`, commit it (C2), spawn
+   bd to update the roadmap, and re-rank the backlog before pulling the next
+   item. With `release_review: wait`, don't pull anything until the reply arrives.
+8. **Merge:** after `review` is approved, merge the item branch to the main
    branch with `--no-ff`.
-8. **Done:** when the item is RELEASED, total its tokens in `item.md` and
+9. **Done:** when the item is RELEASED, total its tokens in `item.md` and
    move the folder to `archive/<YYYY>/`.

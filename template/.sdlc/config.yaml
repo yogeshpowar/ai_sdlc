@@ -48,7 +48,23 @@ gates:
   retry_budget: 3
   monitor_window_min: 30
 
-human_approvals: [prd, prod_deploy, destructive_migration]
+human_approvals:                # who signs off what, per item size (PROTO.md §3.4, §8)
+  spec: [M]                     # story/PRD sign-off: [] | [M] | [S, M]
+  prod_deploy: [S, M]           # drop S once you trust the pipeline
+  flag_on_in_prod: true         # turning a feature flag on in prod needs approval
+  destructive_migration: true
+
+delivery:                       # iterative delivery (PROTO.md §3.3–3.8)
+  walking_skeleton: true        # first item = hello world through the real pipeline to prod
+  sizes:
+    S: { max_acs: 3, max_tokens: 300000 }   # story.md, triggered design only
+    M: { max_acs: 5, max_tokens: 800000 }   # short prd.md; bigger -> EPIC of slices
+  refine_ahead: 3               # only this many backlog items are refined in detail
+  wip_limit: 1                  # max items between DEV and PROD at once
+  release_review: notify        # notify (carry on) | wait (block until you reply)
+  feature_flags: true
+  flag_max_age_days: 30
+  spike_max_tokens: 200000
 compliance: [none]              # none | pci-dss | gdpr | rbi | hipaa | ...
 
 git:                            # §6.7 commit policy

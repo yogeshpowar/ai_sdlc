@@ -1,5 +1,52 @@
 # Changelog: SDLC protocol
 
+## 1.4 — 2026-10-02
+
+Moves from "full analysis per stage" to **iterative delivery**:
+requirements are assumed *not* to be locked, so the product is built in
+thin, functionally complete slices that each go to prod, and the human
+steers after every release.
+
+### Added
+- **Delivery model (§3.3):** thin vertical slices; walking skeleton first;
+  just-in-time refinement; the human steers after every release.
+- **Item sizes and tracks (§3.4):** S (≤3 ACs, `story.md`) and M (≤5 ACs,
+  short `prd.md`); anything bigger must become an epic. Design agents run
+  only when the slice's `triggers` (data, contract, ui, security) call for
+  them. Definition of Ready.
+- **Roadmap, backlog and WIP (§3.5):** `board/roadmap.md` (bd) for
+  direction; the backlog holds only refined items (`refine_ahead`); re-rank
+  after every release; `wip_limit`.
+- **Release review (§3.6):** after every release the human gets Shipped /
+  Try it / Cost / Learned / Proposed next / Questions in `outbox/`, and
+  replies via `inbox/`.
+- **Epics and feature flags (§3.7):** `EPIC` type; slicing patterns; shipping
+  dark behind flags (on in uat/stage, off in prod until approved).
+- **Spikes (§3.8):** time-boxed questions whose output is a decision or an
+  ADR, never production code.
+- Principles 8 and 9; `delivery` section in `config.yaml`; flow metrics
+  (cycle time, release frequency, WIP).
+- `sdlc-status` shows size, flags and epics, with slices nested under their epic.
+
+### Changed
+- `human_approvals` is now per size (`spec: [M]`, `prod_deploy: [S, M]`,
+  `flag_on_in_prod`, `destructive_migration`). It replaces the old flat list.
+- Gates: REQ → DESIGN is the Definition of Ready; DESIGN → DEV checks only
+  the triggered areas; QA checks flag on and off; PROD → RELEASED requires
+  the release review.
+- Agents: orchestrator (walking skeleton, refinement, WIP, size tracks,
+  release-review loop), bd (living roadmap), prd (size, slice, story vs
+  PRD, epics), design agents get a `Runs when:` trigger, dev agents stay in
+  the slice and respect flags, qa tests with flags on/off, devops manages
+  flags, release writes the release review.
+- GUIDE.md: "How the work flows", brief as a direction, the release review
+  as the human's main job, an updated kickoff prompt and config table.
+
+### Upgrading from 1.3
+Replace `human_approvals: [...]` in `config.yaml` with the per-size form,
+and add the `delivery:` section (copy both from `template/.sdlc/config.yaml`).
+Add `board/roadmap.md` from the template.
+
 ## 1.3 — 2026-10-02
 
 ### Added

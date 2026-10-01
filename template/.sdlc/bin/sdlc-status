@@ -200,49 +200,80 @@ def render(project, state, events, runs, colour=False):
     # Items grouped by section, as TODO.MD task lines with runs as subtasks.
     def sort_key(kv):
         stage = (kv[1].get("stage") or "BACKLOG").upper()
+        if (kv[1].get("type") or kv[0].split("-")[0]) == "EPIC":
+            kid = [(v.get("stage") or "BACKLOG").upper() for v in items.values() if v.get("epic") == kv[0]]
+            stage = ("DEV" if any(k not in ("BACKLOG", "RELEASED", "CANCELLED") for k in kid)
+                     else "RELEASED" if kid and all(k == "RELEASED" for k in kid) else "BACKLOG")
         rank = 2 if stage in ("RELEASED", "CANCELLED") else 1 if stage == "BACKLOG" else 0
         return (rank, kv[0])
     sections = {}
     for iid, it in sorted(items.items(), key=sort_key):
         sections.setdefault(it.get("section") or "Backlog", []).append((iid, it))
+    def short(iid):
+        parts = (iid or "").split("-")
+        return "-".join(parts[:2]) if len(parts) >= 2 else iid
+
+    def emit_item(iid, it, ind):
+        pad = " " * ind
+        pr = f"({it.get('priority') or 'p2'})"
+        dates = " ".join(d for d in (it.get("created"), it.get("released")) if d)
+        dates = dates + " " if dates else ""
+        title = it.get("title") or iid
+        if (it.get("type") or iid.split("-")[0]) == "EPIC":
+            kids = sorted(((k, v) for k, v in items.items() if v.get("epic") == iid), key=sort_key)
+            done = sum(1 for _, v in kids if (v.get("stage") or "").upper() == "RELEASED")
+            started = any((v.get("stage") or "BACKLOG").upper() != "BACKLOG" for _, v in kids)
+            em = "[X]" if kids and done == len(kids) else "[o]" if started else "[ ]"
+            L.append(f"{pad}* {mark(em, colour)} {pr} {dates}+{project} EPIC: {title} "
+                     f"id:{iid} slices:{done}/{len(kids)}")
+            if it.get("note"):
+                L.append(f"{pad}    - {it['note']}")
+            for k, v in kids:
+                emit_item(k, v, ind + 4)
+            return
+        owner = f" @{it['owner']}" if it.get("owner") else ""
+        meta = [f"id:{iid}", f"stage:{(it.get('stage') or 'BACKLOG').lower()}"]
+        if it.get("size"):
+            meta.append(f"size:{it['size']}")
+        if it.get("epic") and it["epic"] not in items:
+            meta.append(f"epic:{short(it['epic'])}")
+        if it.get("feature_flag"):
+            meta.append(f"flag:{it['feature_flag']}")
+        if it.get("round"):
+            meta.append(f"round:{it['round']}")
+        if item_tok.get(iid):
+            meta.append(f"tok:{human_tok(item_tok[iid])}")
+        if it.get("release"):
+            meta.append(f"release:{it['release']}")
+        L.append(f"{pad}* {mark(item_mark(it), colour)} {pr} {dates}+{project} {title}{owner} {' '.join(meta)}")
+        if it.get("note"):
+            L.append(f"{pad}    - {it['note']}")
+        item_runs = sorted((r for r in runs.values() if r.get("item") == iid),
+                           key=lambda r: r.get("spawned") or "")
+        for r in item_runs:
+            rm = mark(RUN_MARK.get(r.get("end"), "[o]"), colour)
+            d1 = (r.get("spawned") or "")[:10]
+            d2 = (r.get("ended") or "")[:10]
+            st, en = parse_ts(r.get("started") or r.get("spawned")), parse_ts(r.get("ended"))
+            took = human_dur(((en or t) - st).total_seconds()) if st else "?"
+            rmeta = [f"run:{r['run_id']}", f"took:{took}"]
+            if r.get("tokens"):
+                rmeta.append(f"tok:{human_tok(r['tokens'])}")
+            if r.get("retry_of"):
+                rmeta.append(f"retry_of:{r['retry_of']}")
+            L.append(f"{pad}    * {rm} {d1}{' ' + d2 if d2 else ''} +{project} "
+                     f"{r.get('stage')} r{r.get('round') or 1}: {r.get('task') or ''} "
+                     f"@{r.get('agent')} {' '.join(rmeta)}")
+            if r.get("reason"):
+                L.append(f"{pad}        - {r['reason']}")
+
     for sec, rows in sections.items():
         L.append(f"## {sec}")
         L.append("")
         for iid, it in rows:
-            m = mark(item_mark(it), colour)
-            pr = f"({it.get('priority') or 'p2'})"
-            dates = " ".join(d for d in (it.get("created"), it.get("released")) if d)
-            title = it.get("title") or iid
-            owner = f" @{it['owner']}" if it.get("owner") else ""
-            tok = item_tok.get(iid)
-            meta = [f"id:{iid}", f"stage:{(it.get('stage') or 'BACKLOG').lower()}"]
-            if it.get("round"):
-                meta.append(f"round:{it['round']}")
-            if tok:
-                meta.append(f"tok:{human_tok(tok)}")
-            if it.get("release"):
-                meta.append(f"release:{it['release']}")
-            L.append(f"* {m} {pr} {dates + ' ' if dates else ''}+{project} {title}{owner} {' '.join(meta)}")
-            if it.get("note"):
-                L.append(f"    - {it['note']}")
-            item_runs = sorted((r for r in runs.values() if r.get("item") == iid),
-                               key=lambda r: r.get("spawned") or "")
-            for r in item_runs:
-                rm = mark(RUN_MARK.get(r.get("end"), "[o]"), colour)
-                d1 = (r.get("spawned") or "")[:10]
-                d2 = (r.get("ended") or "")[:10]
-                s, e = parse_ts(r.get("started") or r.get("spawned")), parse_ts(r.get("ended"))
-                took = human_dur(((e or t) - s).total_seconds()) if s else "?"
-                rmeta = [f"run:{r['run_id']}", f"took:{took}"]
-                if r.get("tokens"):
-                    rmeta.append(f"tok:{human_tok(r['tokens'])}")
-                if r.get("retry_of"):
-                    rmeta.append(f"retry_of:{r['retry_of']}")
-                L.append(f"    * {rm} {d1}{' ' + d2 if d2 else ''} +{project} "
-                         f"{r.get('stage')} r{r.get('round') or 1}: {r.get('task') or ''} "
-                         f"@{r.get('agent')} {' '.join(rmeta)}")
-                if r.get("reason"):
-                    L.append(f"        - {r['reason']}")
+            if it.get("epic") in items:
+                continue  # rendered under its epic
+            emit_item(iid, it, 0)
         L.append("")
 
     L += ["---",

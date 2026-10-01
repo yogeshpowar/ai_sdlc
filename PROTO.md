@@ -20,13 +20,19 @@ All coordination files live in `.sdlc/` (section 6), apart from the project's ow
    criteria pass. Failing a gate sends work back, with a written reason.
 4. **Least privilege.** Each agent can touch only what its role needs (QA can't
    edit code, devs can't deploy, only DevOps promotes environments).
-5. **Humans approve the irreversible.** Scope sign-off, production deploys,
-   schema migrations on live data, and anything that costs money or reaches
-   users need explicit human approval.
+5. **Humans approve the irreversible.** Production deploys, schema migrations
+   on live data, turning a feature flag on in prod, and anything that costs
+   money or reaches users need explicit human approval. Scope sign-off is
+   sized to the item (3.4).
 6. **Bounded loops.** Every feedback loop has a retry limit. When it runs out,
    the work escalates to a human; agents don't loop forever.
 7. **Learn once.** Repeat mistakes go into `.sdlc/knowledge/lessons.md` and every later agent
    reads it before starting.
+8. **Ship thin, complete slices.** Requirements are never fully known up
+   front. Every item is a small, functionally complete slice that goes all
+   the way to prod, with process sized to the item (3.3, 3.4).
+9. **The human steers after every release.** What to build next is decided
+   from what just shipped, not from a plan made at the start (3.5, 3.6).
 
 ---
 
@@ -44,20 +50,21 @@ All coordination files live in `.sdlc/` (section 6), apart from the project's ow
 
 | Agent | Input → Output |
 |---|---|
-| **BD / Market** | Market signals, competitors, user feedback → `opportunity.md` (problem, target user, competitive analysis, sizing, proposed feature/product) |
+| **BD / Market** | Brief, user feedback, release-review replies, Monitor insights → `board/roadmap.md` (themes, epics, one-line candidates), refreshed after every release. For the top candidates, just in time: `opportunity.md` (problem, user, evidence, proposed slice), plus market analysis only for new product bets |
 | **Triage** | Bug reports, prod incidents, QA escapes → `bug-<id>.md` (repro, severity, affected area). Bugs take the **fast lane** (section 4.3) and skip market analysis. |
 
 ### 2.2 Design
 
 | Agent | Input → Output |
 |---|---|
-| **PRD** | `opportunity.md` → `prd.md`: goal, non-goals, user stories, **testable** acceptance criteria, success metrics. *Human sign-off gate.* |
+| **PRD** | `opportunity.md` → sizes and slices the item (3.4). S → `story.md` (story + ≤3 testable ACs); M → `prd.md` (goal, non-goals, stories, ≤5 testable ACs, success metric); too big → an `EPIC` of slices. Lists the design `triggers`. *Human sign-off for the sizes in `human_approvals.spec`.* |
 | **Data Requirements** | `prd.md` → `data-req.md`: entities, fields, ownership, retention, PII classification |
 | **Data Flow / Architecture** | `prd.md`, `data-req.md` → `architecture.md` + `api-contract` (OpenAPI/proto): components, sequence/data-flow diagrams, integration points, ADRs for big decisions |
 | **UX** | `prd.md` → `ux-flows.md`: user journeys, states (empty/loading/error), accessibility |
 | **UI / Screens** | `ux-flows.md` → `screens/`: screen specs or mockups for every state |
 
-> Order: PRD → (Data Req ‖ UX) → (Data Flow ‖ UI). `‖` = can run in parallel.
+> Design agents run **only when triggered** by the slice (3.4). When several
+> are, the order is PRD → (Data Req ‖ UX) → (Data Flow ‖ UI). `‖` = can run in parallel.
 
 ### 2.3 Development
 
@@ -83,12 +90,12 @@ All coordination files live in `.sdlc/` (section 6), apart from the project's ow
 | Agent | Responsibility |
 |---|---|
 | **DevOps** | CI/CD, infrastructure, promotion `dev → uat → stage → prod`, rollback. The only agent allowed to deploy. |
-| **Release** | Release notes, CHANGELOG, version tag, announcement. |
+| **Release** | Release notes, CHANGELOG, version tag, and the **release review** for the human (3.6). |
 | **Monitor / SRE** | Watches prod after release (errors, latency, business KPIs vs PRD success metrics). Problems go to Triage, insights go to BD. **This closes the loop.** |
 
 ---
 
-## 3. Lifecycle state machine
+## 3. Lifecycle and delivery model
 
 ```
 BACKLOG → REQ → DESIGN → DEV → REVIEW → QA@dev
@@ -100,6 +107,10 @@ BACKLOG → REQ → DESIGN → DEV → REVIEW → QA@dev
 
 QA is **interleaved**, not a single stage at the end: every promotion is
 `deploy → QA → gate`.
+
+This is the path of **one small item**, not of the whole product. REQ and
+DESIGN are minutes of work for a typical S slice (3.4). Many items flow
+through it one after another, and each release feeds the next choice (3.3–3.6).
 
 ### 3.1 Transitions on failure
 
@@ -116,7 +127,135 @@ QA is **interleaved**, not a single stage at the end: every promotion is
 
 - Each item gets up to **3** DEV ↔ QA round-trips per environment.
 - After that, the Orchestrator escalates to a human with a summary of all the
-  attempts.
+  attempts. Repeated rework often means the slice is too big, so the
+  escalation proposes a split.
+
+### 3.3 Delivery model: iterative, thin slices
+
+The lifecycle above runs **per item, and items are small**. The protocol is
+built for products whose requirements are *not* locked. Nobody, including
+the human, knows the whole product up front. You learn what to build by
+shipping small, working increments and looking at them.
+
+- **Every item is a thin vertical slice.** It is functionally complete for
+  its user (a real person can do one real thing end to end), shippable to
+  prod on its own, and within the size limits of 3.4. "Backend for X" or
+  "screens for X" are not items. "A shop owner can add one product with a
+  name and price" is.
+- **Ceremony is sized to the item.** Small items get a short story and go
+  straight to dev. Design agents run only when the slice touches their area (3.4).
+- **Walking skeleton first.** When `delivery.walking_skeleton` is on, a
+  project's first item (`CHORE-0001-walking-skeleton`) takes a trivial
+  "hello world" through the real pipeline all the way to prod. That proves
+  build, deploy, rollback and the status view before any feature work.
+- **Refine just in time.** Only the next `delivery.refine_ahead` items are
+  refined in detail. Everything else stays a one-line candidate on the
+  roadmap until it gets close (3.5).
+- **The human steers after every release.** Each release ends with a short
+  release review for the human, and the reply decides what comes next (3.6).
+- **Bigger ideas become epics of slices.** Work that doesn't fit one slice
+  becomes an `EPIC` split into slices. Unfinished parts that would be
+  visible to users ship dark behind feature flags (3.7).
+- **Unknowns get spikes, not guesses.** If nobody knows how to build it, or
+  whether it's worth building, run a time-boxed `SPIKE` first (3.8).
+
+### 3.4 Item sizes and tracks
+
+The PRD agent sizes every item before design starts. The size picks the
+track: which stages run, and which human approvals apply.
+
+| Size | Limits (`config.yaml` → `delivery.sizes`) | Spec | Track |
+|---|---|---|---|
+| **S** | ≤ 3 acceptance criteria, ≤ `max_tokens`; no new entity, contract or trust boundary | `20-design/story.md` (story + ACs, ~10 lines) | story → *triggered design only* → dev → review → QA@dev → uat → stage → prod |
+| **M** | ≤ 5 acceptance criteria, ≤ `max_tokens` | `20-design/prd.md` (short PRD) | prd → *triggered design* → dev → review → QA@dev → uat → stage → prod |
+| **too big** | anything over M | — | not allowed as an item. The PRD agent turns it into an `EPIC` with S/M slices (3.7) |
+
+**Design agents are triggered, not mandatory.** For every size, a design
+agent runs only when the slice touches its area:
+
+| Agent | Runs when the slice… |
+|---|---|
+| data-req, schema | adds or changes stored data |
+| data-flow | adds or changes an API contract, component or integration |
+| ux, ui | adds a screen or changes a user flow (not for copy or style tweaks) |
+| security (threat model) | adds a trust boundary, auth/permission logic, or touches PII/financial data (`compliance` ≠ none makes this stricter) |
+
+The PRD agent lists the triggers it found in the spec's front matter
+(`triggers: [data, contract, ui, security]`, or `[]`). The Orchestrator
+routes by that list. A reviewer who finds a missed trigger sends the item
+back to DESIGN.
+
+**Definition of Ready** (REQ → DESIGN gate): the item is a slice (one user,
+one outcome), within its size, has testable ACs (or will have them after
+the story/PRD), names its triggers, and is in the top `refine_ahead` of the
+backlog.
+
+### 3.5 Backlog, roadmap and WIP
+
+- **`board/roadmap.md`** (written by BD) holds the direction: themes, epics
+  and one-line candidate items, in rough priority order. It's cheap to
+  change, and is expected to change after every release.
+- **`board/backlog.md`** (written by the Orchestrator) holds only items that
+  are ready or nearly ready. BD and PRD refine the top `refine_ahead`
+  candidates from the roadmap into backlog items, just in time.
+- **Re-rank after every release.** The Orchestrator re-orders the backlog
+  from the human's release-review reply (3.6), Monitor findings and new
+  `inbox/` requests. Bugs with Sev1/Sev2 go to the top.
+- **Limit work in progress.** At most `delivery.wip_limit` items may be
+  between DEV and PROD at once (default 1). Finish before starting:
+  the Orchestrator doesn't pull a new item into DEV while the limit is reached.
+
+### 3.6 Release review with the human
+
+After every prod release, the release agent writes
+`70-release/release-review.md` and a matching
+`outbox/<ts>-<ID>-release-review.md`:
+
+```markdown
+## Shipped        <what a user can now do, in one or two sentences> (v<X.Y.Z>)
+## Try it         <URL / command and 3–5 steps to see it working>
+## Cost           <tokens for this item, rework share>
+## Learned        <surprises, Monitor findings, lessons.md entries added>
+## Proposed next  <top 3 backlog items with one line each on why, plus any epic progress>
+## Questions      <decisions only the human can make>
+```
+
+The human replies in `inbox/` (`type: answer`). They might keep the order,
+re-rank, add or drop items, or change direction. The Orchestrator commits
+the reply (C2), BD updates the roadmap, and the backlog is re-ranked before
+the next item is pulled. If `delivery.release_review: wait`, the
+Orchestrator waits for the reply. With `notify` (the default), it carries
+on with the proposed next item and picks up the reply whenever it arrives.
+
+### 3.7 Epics, slicing and feature flags
+
+- **`EPIC-NNNN-<slug>`** items group slices. An epic never enters the
+  lifecycle itself. It has an `items/<ID>/item.md` listing its slices, a
+  goal, and its own done criterion. Each slice has `epic: EPIC-NNNN` in its
+  state entry. The epic is done when its slices are released and its goal is met.
+- **Slice by user value, not by layer.** Good patterns: one happy path
+  first, then edge cases; one user role at a time; one data variant at a
+  time; manual first, automated later; read before write.
+- **Main is always releasable.** A slice that is complete but not yet
+  useful (or not yet safe) to show users ships **behind a feature flag**
+  (`feature_flag: <name>` in the spec). The flag is on in uat and stage for
+  QA, and off in prod until the human approves turning it on. Turning a flag
+  on in prod is a prod change: approval (C1), deploy record, monitor window.
+- Flags are temporary. The epic's last slice removes them, and a
+  `CHORE` is raised for any flag older than `delivery.flag_max_age_days`.
+
+### 3.8 Spikes
+
+`SPIKE-NNNN-<slug>` items answer a question: "can we integrate with X?",
+"which approach is cheaper?", "do users even want Y?".
+
+- They are time-boxed (`delivery.spike_max_tokens`) and the output is a
+  **decision**: an ADR in `knowledge/decisions/` and/or new roadmap
+  candidates. It is never production code. Throwaway code stays on the
+  spike branch and is not merged.
+- Track: `10-req/question.md` → the agent best suited to answer it
+  (data-flow, bd, backend, …) → `70-release/spike-result.md` → a short
+  review for the human, same as 3.6.
 
 ---
 
@@ -126,17 +265,19 @@ QA is **interleaved**, not a single stage at the end: every promotion is
 
 | Gate | Must be true to pass |
 |---|---|
-| **REQ → DESIGN** | Problem, target user, and success metric are stated; duplicate check against backlog done |
-| **DESIGN → DEV** | PRD human-approved; every acceptance criterion testable; API contract frozen; threat model done; screens cover all states |
+| **REQ → DESIGN** | **Definition of Ready** (3.4): one user, one outcome; problem and success signal stated; within size limits or split into an epic; duplicate check against backlog done |
+| **DESIGN → DEV** | Spec (`story.md`/`prd.md`) approved per `human_approvals.spec`; every AC testable; for each **triggered** area only: contract frozen, data-req done, threat model done, screens cover all states |
 | **DEV → REVIEW** | Builds; lint/vet clean; unit tests pass; coverage ≥ target; migrations have rollback; docs updated; **all work committed on the item branch (and pushed, if a remote is set)** |
 | **REVIEW → QA** | Reviewer approves against the PRD; security scan clean; `lessons.md` checklist ticked |
-| **QA@env → next env** | 100% of acceptance criteria pass; no open Sev1/Sev2; regression suite green |
+| **QA@env → next env** | 100% of acceptance criteria pass (with the feature flag on, and nothing changed with it off); no open Sev1/Sev2; regression suite green |
 | **STAGE → PROD** | All of the above **plus** explicit human approval (committed, and pinned to the commit SHA being deployed) and a rollback plan |
-| **PROD → RELEASED** | Smoke tests pass; monitor window clean (e.g. 30 min); CHANGELOG published |
+| **PROD → RELEASED** | Smoke tests pass; monitor window clean (e.g. 30 min); CHANGELOG published; release review sent to the human (3.6) |
 
 ### 4.2 Definition of Done
-The item is in prod, its success metric is instrumented, docs and CHANGELOG are
-updated, and the backlog item is closed with links to every artifact.
+The slice is in prod and **functionally complete for its user**. Nothing
+half-built is visible unless it's behind an off flag. Its success signal is
+instrumented, docs and CHANGELOG are updated, the release review has been
+sent, and the item is closed with links to every artifact.
 
 ### 4.3 Fast lane (bugs and hotfixes)
 `Triage → DEV (fix + regression test that reproduces the bug) → REVIEW → QA →
@@ -153,6 +294,7 @@ Each agent is defined in `.sdlc/agents/<name>.md`:
 # Agent: <name>
 Stage: <REQ|DESIGN|DEV|QA|DEPLOY|CONTROL>
 Mission: <one sentence>
+Runs when: <always | only when the slice's `triggers` include …> (3.4)
 Reads:   <artifacts it must read before starting, always incl. knowledge/lessons.md>
 Writes:  <protocol files under .sdlc/items/<ID>/<NN-stage>/ + project paths it may touch>
 Tools:   <allowed tools / commands>
@@ -203,7 +345,8 @@ Files in a repo fall into exactly one of two kinds:
   agents/                           # agent definitions (section 5)
     <agent>.md
   board/
-    backlog.md                      # ordered list of item IDs + status (Orchestrator only)
+    roadmap.md                      # direction: themes, epics, one-line candidates (bd; 3.5)
+    backlog.md                      # ready / nearly-ready items, ranked (Orchestrator; 3.5)
     state.json                      # machine state: item → stage, owner, retries, env versions
     board.md                        # generated human-readable view of state.json
   knowledge/
@@ -237,7 +380,7 @@ Files in a repo fall into exactly one of two kinds:
 ### 6.3 Naming patterns
 
 **Item ID:** `<TYPE>-<NNNN>-<slug>`
-- `TYPE` ∈ `FEAT` (feature), `BUG`, `CHORE` (tech debt, infra), `SPIKE` (research), `HOTFIX`
+- `TYPE` ∈ `FEAT` (feature slice), `BUG`, `CHORE` (tech debt, infra), `SPIKE` (time-boxed question, 3.8), `HOTFIX`, `EPIC` (a group of slices that never enters the lifecycle itself, 3.7)
 - `NNNN` is a zero-padded number that only increases and is unique across all types
 - `slug` is kebab-case, at most 5 words
 - e.g. `FEAT-0012-user-login`, `BUG-0014-login-timeout`
@@ -250,13 +393,13 @@ The gaps leave room to add stages later (e.g. `45-security`).
 
 | Stage folder | Files |
 |---|---|
-| `10-req/` | `opportunity.md`, `market-analysis.md`, or `bug-report.md` |
-| `20-design/` | `prd.md`, `data-req.md`, `architecture.md`, `api-contract.yaml`, `ux-flows.md`, `threat-model.md`, `screens/<screen-slug>.md` |
+| `10-req/` | `opportunity.md`, `market-analysis.md` (new product bets only), `bug-report.md`, or `question.md` (spikes) |
+| `20-design/` | `story.md` (S) or `prd.md` (M), `data-req.md`, `architecture.md`, `api-contract.yaml`, `ux-flows.md`, `threat-model.md`, `screens/<screen-slug>.md` |
 | `30-dev/` | `impl-notes.<agent>.md` (e.g. `impl-notes.backend.md`), `test-summary.<agent>.md` |
 | `40-review/` | `review.r<N>.md`, `security-scan.r<N>.md` |
 | `50-qa/` | `test-plan.md`, `qa-report.<env>.r<N>.md` (e.g. `qa-report.uat.r2.md`) |
 | `60-deploy/` | `deploy.<env>.r<N>.md`, `rollback-plan.md` |
-| `70-release/` | `release-notes.md`, `monitor-report.md` |
+| `70-release/` | `release-notes.md`, `release-review.md` (3.6), `monitor-report.md`, `spike-result.md` (spikes) |
 
 - `r<N>` is the **round** (attempt number). A failed QA round doesn't overwrite
   the report. `r2` sits next to `r1`, so the history of each round-trip stays
@@ -340,7 +483,8 @@ from a `prd.md` whose status isn't `approved`.
 
 | Path | Writer | Everyone else |
 |---|---|---|
-| `board/*`, `items/*/log.md`, `items/*/item.md` | Orchestrator | read |
+| `board/*` (except roadmap), `items/*/log.md`, `items/*/item.md` | Orchestrator | read |
+| `board/roadmap.md` | bd | read |
 | `items/*/<NN-stage>/*` | that stage's agents | read |
 | `items/*/messages/*` | the sending agent (create only) | read |
 | `knowledge/lessons.md` | Reviewer and QA append; Orchestrator curates | read (mandatory) |
@@ -636,7 +780,8 @@ reader never sees half a file. Sections:
 3. **Recent:** the last 10 spawn and terminal events (▶️ ✅ ❌ ⌛ 🙋 ⏹️), with
    tokens and reasons.
 4. **Board:** one `## <section>` per backlog section. Each item is a TODO.MD
-   task line, and its agent runs are subtasks under it:
+   task line, and its agent runs are subtasks under it. An `EPIC` shows
+   `slices:<released>/<total>`, with its slices nested under it as subtasks:
 
 ```
 * [u] (p0) 2026-10-02 +shop Cart and checkout @qa id:FEAT-0002-cart-checkout stage:uat round:1 tok:250.1k
@@ -680,6 +825,9 @@ bash + python3. Run it in a spare terminal, or use
     "created": "2026-10-02", "released": null,
     "stage": "UAT", "flag": null,            // null | blocked | failed
     "owner": "qa", "round": 1, "release": null,
+    "type": "FEAT", "size": "S",              // S | M (EPIC items have no size)
+    "epic": "EPIC-0001-storefront",           // parent epic, or null
+    "feature_flag": null,                     // flag name if it ships dark (3.7)
     "note": null,                            // one line shown under the item (e.g. what it's blocked on)
     "tokens": { "total": 250100, "by_agent": {}, "by_stage": {} }
   }
@@ -706,11 +854,14 @@ bash + python3. Run it in a spare terminal, or use
 
 ## 8. Human-in-the-loop checkpoints
 
-1. Approving a new opportunity into the backlog (optional, per project)
-2. PRD sign-off
+1. **Release review after every release** (3.6). This is the main way the
+   human steers: re-rank, add, drop, or change direction.
+2. Spec sign-off for the sizes listed in `human_approvals.spec` (default: M only)
 3. Destructive or irreversible migrations
-4. STAGE → PROD promotion
-5. Any escalation from a used-up retry budget or a security blocker
+4. STAGE → PROD promotion for the sizes in `human_approvals.prod_deploy`,
+   and turning a feature flag on in prod
+5. Any escalation from a used-up retry budget, a token budget, or a security blocker
+6. Optionally, approving a new roadmap theme or epic
 
 Every human decision is committed immediately (6.7, C1), and it is pinned
 to the exact artifact version or commit that was approved.
@@ -735,8 +886,23 @@ gates:
   coverage_min: 80
   retry_budget: 3
   monitor_window_min: 30
-human_approvals: [prd, prod_deploy, destructive_migration]
+human_approvals:                # who signs off what, per item size
+  spec: [M]                     # story/PRD sign-off: [] | [M] | [S, M]
+  prod_deploy: [S, M]           # drop S once you trust the pipeline
+  flag_on_in_prod: true
+  destructive_migration: true
 compliance: [none | pci-dss | gdpr | rbi | hipaa]
+delivery:                       # 3.3–3.8
+  walking_skeleton: true        # first item = hello world through the real pipeline to prod
+  sizes:
+    S: { max_acs: 3, max_tokens: 300000 }
+    M: { max_acs: 5, max_tokens: 800000 }
+  refine_ahead: 3               # only this many backlog items are refined in detail
+  wip_limit: 1                  # max items between DEV and PROD at once
+  release_review: notify        # notify (carry on) | wait (block until the human replies)
+  feature_flags: true
+  flag_max_age_days: 30
+  spike_max_tokens: 200000
 git:                            # 6.7
   main_branch: main
   item_branch: feature/<ITEM-ID>  # fix/<ITEM-ID> for BUG, hotfix/<ITEM-ID> for HOTFIX
@@ -762,6 +928,9 @@ The protocol stays the same and only the roster changes.
 
 ## 10. Metrics (to evaluate the agent system itself)
 
+- **Flow** (3.3–3.5): cycle time per item (DEV → RELEASED) by size;
+  releases per week; WIP over time; share of items that are S; items split
+  after starting (slicing misses); time from release review to the human's reply
 - Lead time per item (BACKLOG → RELEASED) and time spent at each stage
 - Gate failure rate per stage and **escape rate** (bugs found in a later env
   than they should have been)
