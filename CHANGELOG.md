@@ -1,6 +1,6 @@
 # Changelog: SDLC protocol
 
-## Unreleased (docs and tooling only, protocol unchanged)
+## 1.4.1 — 2026-10-02 (docs and tooling only, protocol unchanged)
 
 ### Changed
 - README and GUIDE no longer assume `~/working/`. New "Get it" step: clone
