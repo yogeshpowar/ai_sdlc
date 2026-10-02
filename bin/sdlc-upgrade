@@ -1,6 +1,20 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-# Copyright © 2026 Shri Yogesh Ashok Powar <yogesh.powar@gmail.com>
+#
+# sdlc-upgrade: upgrade a project's .sdlc/ to a newer ai_sdlc protocol version.
+# Copyright (C) 2026  Shri Yogesh Ashok Powar <yogesh.powar@gmail.com>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, version 3 of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Upgrade a project's .sdlc/ to the protocol version in this ai_sdlc checkout.
 
 Safe by design (PROTO.md §6.12):

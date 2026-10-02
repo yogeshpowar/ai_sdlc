@@ -1,5 +1,13 @@
 # Changelog: SDLC protocol
 
+## 1.4.3 — 2026-10-02 (license notices only, protocol unchanged)
+
+### Changed
+- `sdlc-init`, `sdlc-upgrade`, `sdlc-status` and `sdlc-watch` carry the full
+  notice from the GPL's "How to Apply These Terms" appendix (program name and
+  purpose, copyright, and the redistribution, warranty and license-copy
+  paragraphs). It is worded for GPL-3.0-only, and the SPDX identifier is kept.
+
 ## 1.4.2 — 2026-10-02 (license metadata only, protocol unchanged)
 
 ### Changed
