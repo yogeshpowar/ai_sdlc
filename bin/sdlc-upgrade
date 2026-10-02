@@ -21,7 +21,7 @@ Usage: sdlc-upgrade <project-dir> [--dry-run] [--commit] [--force]
 """
 import argparse, datetime, json, os, re, subprocess, sys, tempfile
 
-SDLC_HOME = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SDLC_HOME = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))  # follows symlinks
 TEMPLATE = os.path.join(SDLC_HOME, "template", ".sdlc")
 TERMINAL = {"completed", "failed", "timed_out", "escalated", "cancelled"}
 

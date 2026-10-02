@@ -1,5 +1,14 @@
 # Changelog: SDLC protocol
 
+## Unreleased (docs and tooling only, protocol unchanged)
+
+### Changed
+- README and GUIDE no longer assume `~/working/`. New "Get it" step: clone
+  anywhere, set `AI_SDLC`, and put `$AI_SDLC/bin` on `PATH`. Commands are
+  then plain `sdlc-init` / `sdlc-upgrade`, and projects can live anywhere.
+- `sdlc-init` and `sdlc-upgrade` resolve symlinks, so they also work when
+  linked into e.g. `~/bin`.
+
 ## 1.4 — 2026-10-02
 
 Moves from "full analysis per stage" to **iterative delivery**:

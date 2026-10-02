@@ -34,15 +34,24 @@ slice when it touches their area. See PROTO.md §3.3–3.8.
   sub-agents**, e.g. Claude Code (`claude`). The examples below use Claude
   Code, but any runner that can do those three things works.
 - A clear idea of what you want to build. Ten good sentences are enough.
+- **ai_sdlc itself, installed once** (any location works; the examples below
+  use `$AI_SDLC` for wherever you put it):
+
+```sh
+git clone https://github.com/yogeshpowar/ai_sdlc.git    # anywhere you like
+export AI_SDLC="$PWD/ai_sdlc"                            # add these two lines to
+export PATH="$AI_SDLC/bin:$PATH"                         # ~/.bashrc or ~/.zshrc
+sdlc-init --version                                      # check: prints the protocol version
+```
 
 ---
 
 ## 1. Create the project (2 minutes)
 
 ```sh
-mkdir -p ~/working/my-app && cd ~/working/my-app
+mkdir my-app && cd my-app          # wherever you keep your projects
 git init
-~/working/ai_sdlc/bin/sdlc-init . my-app
+sdlc-init . my-app
 git add -A && git commit -m "sdlc: initialise protocol"
 ```
 
@@ -62,7 +71,7 @@ The test: delete `.sdlc/`, and a new developer can still understand, build,
 run and change the product.
 
 To pin a specific protocol version instead of the latest:
-`git -C ~/working/ai_sdlc checkout v1.2` before running `sdlc-init`.
+`git -C "$AI_SDLC" checkout v1.4` (any tag) before running `sdlc-init`.
 `sdlc-init --version` shows which version you have.
 
 ---
@@ -146,7 +155,7 @@ git add -A && git commit -m "sdlc: brief, config and agents for my-app"
 ## 5. Start the Orchestrator
 
 Open your agent runner **in the project root** and give it this kickoff
-prompt. With Claude Code: `cd ~/working/my-app && claude`, then paste:
+prompt. With Claude Code: `cd my-app && claude`, then paste:
 
 ```text
 You are the Orchestrator for this project. Follow .sdlc/PROTO.md exactly,
@@ -185,7 +194,7 @@ re-explain anything.
 In a second terminal:
 
 ```sh
-cd ~/working/my-app && .sdlc/bin/sdlc-watch
+cd my-app && .sdlc/bin/sdlc-watch
 ```
 
 It's a split screen, refreshed every 2 seconds:
@@ -334,12 +343,12 @@ never touches your code, your `docs/`, or the agents' records** (items,
 traces, approvals, inbox/outbox, board, lessons). See PROTO.md §6.12.
 
 ```sh
-git -C ~/working/ai_sdlc pull                     # get the new version (read CHANGELOG.md)
-cd ~/working/my-app
+git -C "$AI_SDLC" pull                          # get the new version (read $AI_SDLC/CHANGELOG.md)
+cd my-app
 # 1. stop the Orchestrator and wait for running agents to finish (sdlc-watch shows "nobody is working")
 # 2. commit or stash anything uncommitted
-~/working/ai_sdlc/bin/sdlc-upgrade . --dry-run    # see exactly what will change
-~/working/ai_sdlc/bin/sdlc-upgrade . --commit     # do it
+sdlc-upgrade . --dry-run    # see exactly what will change
+sdlc-upgrade . --commit     # do it
 ```
 
 What you'll see in the plan:
@@ -381,4 +390,4 @@ Changed your mind before committing? `git checkout -- .sdlc .gitignore && git cl
 | See an item's whole story | `.sdlc/items/<ID>/` (`item.md`, `log.md`, `messages/`) |
 | See what it cost | `item.md` → Tokens; the header of `TODO.md` |
 | See what we've learned | `.sdlc/knowledge/lessons.md` |
-| Upgrade the protocol | stop agents, commit, then `ai_sdlc/bin/sdlc-upgrade . --dry-run`, then `--commit` |
+| Upgrade the protocol | stop agents, commit, `git -C "$AI_SDLC" pull`, then `sdlc-upgrade . --dry-run`, then `--commit` |

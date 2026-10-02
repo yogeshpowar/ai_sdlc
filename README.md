@@ -23,6 +23,19 @@ The protocol itself is [`PROTO.md`](PROTO.md). This repo is its canonical home.
 | `bin/sdlc-upgrade` | Upgrades a project's `.sdlc/` to this version without touching its code, docs or agent records |
 | `LICENSE` | GPL-3.0-only |
 
+## Get it
+
+```sh
+git clone https://github.com/yogeshpowar/ai_sdlc.git    # anywhere you like
+export AI_SDLC="$PWD/ai_sdlc"                            # add these two lines to
+export PATH="$AI_SDLC/bin:$PATH"                         # ~/.bashrc or ~/.zshrc
+sdlc-init --version                                      # check: prints the protocol version
+```
+
+To use a specific release, `git -C "$AI_SDLC" checkout v1.4` (any tag).
+To update later, `git -C "$AI_SDLC" pull`. Both scripts work from any
+directory, and also through a symlink (e.g. in `~/bin`).
+
 ## Starting a new project
 
 > Full walkthrough, including the kickoff prompt, approvals, the inbox and
@@ -30,7 +43,7 @@ The protocol itself is [`PROTO.md`](PROTO.md). This repo is its canonical home.
 > each project's `.sdlc/`.
 
 ```sh
-~/working/ai_sdlc/bin/sdlc-init ~/working/<new-project> [project-name]
+sdlc-init <path-to-new-project> [project-name]
 ```
 
 This creates `<new-project>/.sdlc/` with:
@@ -66,8 +79,9 @@ Then:
 ## Upgrading a project
 
 ```sh
-~/working/ai_sdlc/bin/sdlc-upgrade ~/working/<project> --dry-run   # the plan
-~/working/ai_sdlc/bin/sdlc-upgrade ~/working/<project> --commit    # do it
+git -C "$AI_SDLC" pull                    # get the latest version
+sdlc-upgrade <path-to-project> --dry-run  # the plan
+sdlc-upgrade <path-to-project> --commit   # do it
 ```
 
 Projects stay on their pinned version until you run this. It replaces the

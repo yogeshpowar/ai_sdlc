@@ -9,7 +9,11 @@
 set -euo pipefail
 
 usage() { echo "usage: $(basename "$0") <project-dir> [project-name] | --version" >&2; exit 2; }
-SDLC_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+self="${BASH_SOURCE[0]}"
+while [[ -L "$self" ]]; do                       # follow symlinks (e.g. ~/bin/sdlc-init)
+  link="$(readlink "$self")"; [[ "$link" == /* ]] || link="$(dirname "$self")/$link"; self="$link"
+done
+SDLC_HOME="$(cd "$(dirname "$self")/.." && pwd)"
 if [[ "${1:-}" == "--version" || "${1:-}" == "-V" ]]; then
   echo "ai_sdlc protocol $(cat "$SDLC_HOME/VERSION")"; exit 0
 fi
