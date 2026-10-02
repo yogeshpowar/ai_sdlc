@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-# Copyright © 2026 Doublefree.in and contributors.
+# Copyright © 2026 Shri Yogesh Ashok Powar <yogesh.powar@gmail.com>
 """Live split-screen view of the SDLC (PROTO.md §6.11). Read-only.
 
   header: agents working · current item · tokens · env versions

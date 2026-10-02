@@ -101,7 +101,7 @@ the entry.
 
 ## License
 
-Copyright © 2026 Doublefree.in and contributors.
+Copyright © 2026 Shri Yogesh Ashok Powar <yogesh.powar@gmail.com>
 
 The files in this repository are licensed under the **GNU General Public
 License v3.0 only** (GPL-3.0-only). See the [`LICENSE`](LICENSE) file for the
