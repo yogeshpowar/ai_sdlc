@@ -1,5 +1,12 @@
 # Changelog: SDLC protocol
 
+## 1.4.2 — 2026-10-02 (license metadata only, protocol unchanged)
+
+### Changed
+- Copyright holder is now Shri Yogesh Ashok Powar <yogesh.powar@gmail.com>:
+  a notice above the unchanged GPL-3.0 text in `LICENSE`, the README License
+  section, and the script headers.
+
 ## 1.4.1 — 2026-10-02 (docs and tooling only, protocol unchanged)
 
 ### Changed

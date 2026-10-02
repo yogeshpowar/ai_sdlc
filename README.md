@@ -15,7 +15,7 @@ The protocol itself is [`PROTO.md`](PROTO.md). This repo is its canonical home.
 |---|---|
 | **`GUIDE.md`** | **Start here:** step-by-step instructions for humans starting and running a project |
 | `PROTO.md` | The protocol: roles, lifecycle, gates, file layout, run tracing, token accounting |
-| `VERSION` | Protocol version (currently 1.4.1) |
+| `VERSION` | Protocol version (currently 1.4.2) |
 | `CHANGELOG.md` | What changed between protocol versions |
 | `template/.sdlc/` | Blank `.sdlc/` skeleton that gets copied into each new project |
 | `template/.sdlc/agents/` | Generic definitions for every roster agent, plus `_common.md` (rules all agents share) |
